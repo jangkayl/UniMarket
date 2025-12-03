@@ -1,12 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
+// --- Mock Data Types ---
+type Message = {
+  id: number;
+  sender: "me" | "them";
+  text: string;
+  time: string;
+};
+
+type Contact = {
+  id: number;
+  name: string;
+  status: "Online" | "Offline" | "Away";
+  lastMessage: string;
+  time: string;
+  unread: number;
+  avatar: string;
+  history: Message[]; // Each contact now has their own message history
+};
+
 // --- Mock Data ---
-const initialContacts = [
+const initialContacts: Contact[] = [
   {
     id: 1,
     name: "Libron James",
@@ -14,8 +32,27 @@ const initialContacts = [
     lastMessage: "Is the textbook still available?",
     time: "10:30 AM",
     unread: 2,
-    avatar: "/images/avatar1.jpg", // You can use placeholders if these don't exist
-    isActive: true,
+    avatar: "/images/avatar1.jpg",
+    history: [
+      {
+        id: 1,
+        sender: "them",
+        text: "Hi! Is the 'Calculus Made Easy' textbook still available for sale?",
+        time: "10:28 AM",
+      },
+      {
+        id: 2,
+        sender: "me",
+        text: "Yes, it is! Are you interested?",
+        time: "10:30 AM",
+      },
+      {
+        id: 3,
+        sender: "them",
+        text: "Is the textbook still available?",
+        time: "10:30 AM",
+      },
+    ],
   },
   {
     id: 2,
@@ -25,7 +62,20 @@ const initialContacts = [
     time: "Yesterday",
     unread: 0,
     avatar: "/images/avatar2.png",
-    isActive: false,
+    history: [
+      {
+        id: 1,
+        sender: "me",
+        text: "Here are the notes from yesterday's lecture.",
+        time: "Yesterday",
+      },
+      {
+        id: 2,
+        sender: "them",
+        text: "Thanks for the notes!",
+        time: "Yesterday",
+      },
+    ],
   },
   {
     id: 3,
@@ -35,7 +85,15 @@ const initialContacts = [
     time: "Monday",
     unread: 1,
     avatar: "/images/avatar3.png",
-    isActive: false,
+    history: [
+      {
+        id: 1,
+        sender: "them",
+        text: "Hey, do you want to study for the exam together?",
+        time: "Monday",
+      },
+      { id: 2, sender: "them", text: "Meet at library?", time: "Monday" },
+    ],
   },
   {
     id: 4,
@@ -45,36 +103,42 @@ const initialContacts = [
     time: "Last Week",
     unread: 0,
     avatar: "/images/avatar4.png",
-    isActive: false,
-  },
-];
-
-const initialMessages = [
-  {
-    id: 1,
-    sender: "them",
-    text: "Hi! Is the 'Calculus Made Easy' textbook still available for sale?",
-    time: "10:28 AM",
-  },
-  {
-    id: 2,
-    sender: "me",
-    text: "Yes, it is! Are you interested?",
-    time: "10:30 AM",
+    history: [
+      {
+        id: 1,
+        sender: "me",
+        text: "I might be late for the group meeting.",
+        time: "Last Week",
+      },
+      { id: 2, sender: "them", text: "Sure, let me know.", time: "Last Week" },
+    ],
   },
 ];
 
 const MessagesPage = () => {
-  const [contacts, setContacts] = useState(initialContacts);
-  const [messages, setMessages] = useState(initialMessages);
+  const [contacts, setContacts] = useState<Contact[]>(initialContacts);
+  const [activeContactId, setActiveContactId] = useState<number>(1); // Default to first contact
   const [newMessage, setNewMessage] = useState("");
+
+  // Get the active contact object based on ID
+  const activeContact =
+    contacts.find((c) => c.id === activeContactId) || contacts[0];
+
+  const handleContactClick = (id: number) => {
+    setActiveContactId(id);
+    // Optional: Mark as read logic could go here
+    const updatedContacts = contacts.map((c) =>
+      c.id === id ? { ...c, unread: 0 } : c
+    );
+    setContacts(updatedContacts);
+  };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
-    const newMsgObj = {
-      id: messages.length + 1,
+    const newMsgObj: Message = {
+      id: Date.now(), // Simple unique ID
       sender: "me",
       text: newMessage,
       time: new Date().toLocaleTimeString([], {
@@ -83,7 +147,20 @@ const MessagesPage = () => {
       }),
     };
 
-    setMessages([...messages, newMsgObj]);
+    // Update the history of the ACTIVE contact only
+    const updatedContacts = contacts.map((contact) => {
+      if (contact.id === activeContactId) {
+        return {
+          ...contact,
+          history: [...contact.history, newMsgObj],
+          lastMessage: "You: " + newMessage, // Update preview text
+          time: "Now",
+        };
+      }
+      return contact;
+    });
+
+    setContacts(updatedContacts);
     setNewMessage("");
   };
 
@@ -96,27 +173,26 @@ const MessagesPage = () => {
 
         <div className="flex flex-col lg:flex-row gap-6 h-[700px]">
           {/* --- LEFT SIDEBAR: Contact List --- */}
-          <div className="w-full lg:w-1/3 flex flex-col gap-4">
-            {/* Search (Optional enhancement not in image, but good for UI) */}
-            {/* <input type="text" placeholder="Search messages..." className="p-3 rounded-xl border border-gray-200 bg-gray-50" /> */}
+          <div className="w-full lg:w-1/3 flex flex-col gap-4 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            {/* Header/Search area could go here */}
 
-            <div className="flex-grow overflow-y-auto pr-2 space-y-2">
+            <div className="flex-grow overflow-y-auto p-2 space-y-1">
               {contacts.map((contact) => (
                 <div
                   key={contact.id}
-                  className={`flex items-center gap-4 p-4 rounded-xl cursor-pointer transition-colors ${
-                    contact.isActive
-                      ? "bg-[#FFF0F0]"
-                      : "hover:bg-gray-50 bg-white"
+                  onClick={() => handleContactClick(contact.id)}
+                  className={`flex items-center gap-4 p-4 rounded-xl cursor-pointer transition-all duration-200 border border-transparent ${
+                    activeContactId === contact.id
+                      ? "bg-[#FFF0F0] border-red-100 shadow-sm"
+                      : "hover:bg-gray-50"
                   }`}
                 >
-                  {/* Avatar Placeholder */}
-                  <div className="w-12 h-12 rounded-full bg-gray-300 overflow-hidden flex-shrink-0 relative">
-                    {/* Replace src with contact.avatar if you have images */}
+                  {/* Avatar */}
+                  <div className="w-12 h-12 rounded-full bg-gray-200 overflow-hidden flex-shrink-0 relative">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       fill="currentColor"
-                      className="w-full h-full text-gray-500 bg-gray-200 p-2"
+                      className="w-full h-full text-gray-500 p-2"
                       viewBox="0 0 16 16"
                     >
                       <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0" />
@@ -133,17 +209,23 @@ const MessagesPage = () => {
 
                   <div className="flex-grow min-w-0">
                     <div className="flex justify-between items-baseline mb-1">
-                      <h3 className="font-bold text-gray-900 truncate">
+                      <h3
+                        className={`font-bold truncate ${
+                          activeContactId === contact.id
+                            ? "text-red-900"
+                            : "text-gray-900"
+                        }`}
+                      >
                         {contact.name}
                       </h3>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-400 font-medium">
                         {contact.time}
                       </span>
                     </div>
                     <p
                       className={`text-sm truncate ${
-                        contact.isActive
-                          ? "text-gray-800 font-medium"
+                        contact.unread > 0
+                          ? "text-gray-900 font-semibold"
                           : "text-gray-500"
                       }`}
                     >
@@ -152,7 +234,7 @@ const MessagesPage = () => {
                   </div>
 
                   {contact.unread > 0 && (
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow-400 flex items-center justify-center text-xs font-bold text-gray-900">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-600 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">
                       {contact.unread}
                     </div>
                   )}
@@ -164,13 +246,13 @@ const MessagesPage = () => {
           {/* --- RIGHT AREA: Chat Window --- */}
           <div className="w-full lg:w-2/3 bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col overflow-hidden h-full">
             {/* Chat Header */}
-            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gray-300 overflow-hidden relative">
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white z-10 shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden relative">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     fill="currentColor"
-                    className="w-full h-full text-gray-500 bg-gray-200 p-2"
+                    className="w-full h-full text-gray-500 p-2"
                     viewBox="0 0 16 16"
                   >
                     <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0" />
@@ -179,14 +261,26 @@ const MessagesPage = () => {
                       d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"
                     />
                   </svg>
-                  <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></div>
+                  {activeContact.status === "Online" && (
+                    <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></div>
+                  )}
                 </div>
                 <div>
-                  <h2 className="font-bold text-gray-900">Libron James</h2>
-                  <p className="text-xs text-green-600 font-medium">Online</p>
+                  <h2 className="font-bold text-gray-900 text-lg">
+                    {activeContact.name}
+                  </h2>
+                  <p
+                    className={`text-xs font-medium ${
+                      activeContact.status === "Online"
+                        ? "text-green-600"
+                        : "text-gray-400"
+                    }`}
+                  >
+                    {activeContact.status}
+                  </p>
                 </div>
               </div>
-              <button className="text-gray-400 hover:text-gray-600">
+              <button className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-50 transition-colors">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="24"
@@ -202,7 +296,7 @@ const MessagesPage = () => {
 
             {/* Messages Stream */}
             <div className="flex-grow p-6 overflow-y-auto space-y-6 bg-white">
-              {messages.map((msg) => (
+              {activeContact.history.map((msg) => (
                 <div
                   key={msg.id}
                   className={`flex flex-col ${
@@ -210,15 +304,15 @@ const MessagesPage = () => {
                   }`}
                 >
                   <div
-                    className={`max-w-[75%] px-5 py-3 rounded-2xl text-sm leading-relaxed ${
+                    className={`max-w-[75%] px-5 py-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
                       msg.sender === "me"
                         ? "bg-[#8B0000] text-white rounded-br-none"
-                        : "bg-gray-100 text-gray-800 rounded-bl-none"
+                        : "bg-gray-100 text-gray-800 rounded-bl-none border border-gray-200"
                     }`}
                   >
                     {msg.text}
                   </div>
-                  <span className="text-xs text-gray-400 mt-1 px-1">
+                  <span className="text-[10px] text-gray-400 mt-1 px-1 font-medium">
                     {msg.time}
                   </span>
                 </div>
@@ -234,7 +328,7 @@ const MessagesPage = () => {
                 {/* Attachment Icon */}
                 <button
                   type="button"
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  className="text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-full hover:bg-gray-50"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -253,11 +347,10 @@ const MessagesPage = () => {
                   <input
                     type="text"
                     placeholder="Type your message..."
-                    className="w-full py-3 pl-4 pr-10 rounded-full border border-gray-200 focus:outline-none focus:border-red-800 focus:ring-1 focus:ring-red-800 bg-white"
+                    className="w-full py-3 pl-4 pr-10 rounded-full border border-gray-200 focus:outline-none focus:border-red-800 focus:ring-1 focus:ring-red-800 bg-gray-50 focus:bg-white transition-all"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                   />
-                  {/* Emoji Icon inside input */}
                   <button
                     type="button"
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
@@ -279,7 +372,12 @@ const MessagesPage = () => {
                 {/* Send Button */}
                 <button
                   type="submit"
-                  className="w-10 h-10 rounded-full bg-[#8B0000] text-white flex items-center justify-center hover:bg-red-900 transition-colors shadow-md"
+                  disabled={!newMessage.trim()}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md ${
+                    newMessage.trim()
+                      ? "bg-[#8B0000] text-white hover:bg-red-900 cursor-pointer"
+                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  }`}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
