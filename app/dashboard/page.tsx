@@ -53,7 +53,7 @@ const featuredListings = [
     title: "Dune by Frank Herbert",
     price: "$15.00",
     condition: "Used - Good",
-    image: "/images/book_dune.jpg", // Replace with actual placeholder if needed
+    image: "/images/book_dune.jpg",
   },
   {
     id: 2,
@@ -74,7 +74,7 @@ const featuredListings = [
     title: "Portable Bluetooth Speaker",
     price: "$25.00",
     condition: "Used - Very Good",
-    image: "/images/laptop_mock.jpg", // Using laptop img based on prototype visual
+    image: "/images/laptop_mock.jpg",
   },
   {
     id: 5,
@@ -227,9 +227,7 @@ const DashboardPage = () => {
       <main className="flex-grow w-full max-w-[1400px] mx-auto px-6 py-8 space-y-10">
         {/* --- 1. HERO SECTION --- */}
         <section className="bg-gradient-to-r from-red-100 to-red-200 rounded-3xl p-10 md:p-14 relative overflow-hidden shadow-sm">
-          {/* Background decoration (optional) */}
           <div className="absolute top-0 right-0 w-1/2 h-full opacity-10 pointer-events-none">
-            {/* Abstract chart SVG placeholder */}
             <svg
               viewBox="0 0 200 200"
               xmlns="http://www.w3.org/2000/svg"
@@ -250,15 +248,17 @@ const DashboardPage = () => {
               Your central hub for all things UniMarket. Quickly navigate,
               discover new listings, or manage your requests.
             </p>
-            <button className="bg-red-900 hover:bg-red-800 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105">
-              Post a New Item
-            </button>
+            {/* UPDATED: Button is now a Link that passes a query parameter */}
+            <Link href="/marketplace?create=true">
+              <button className="bg-red-900 hover:bg-red-800 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 cursor-pointer">
+                Post a New Item
+              </button>
+            </Link>
           </div>
         </section>
 
         {/* --- 2. QUICK ACTIONS CARDS --- */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Card 1: Buy/Sell */}
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center hover:shadow-md transition-shadow cursor-pointer group">
             <div className="text-yellow-400 mb-4 group-hover:scale-110 transition-transform">
               <svg
@@ -282,7 +282,6 @@ const DashboardPage = () => {
             </p>
           </div>
 
-          {/* Card 2: Borrow */}
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center hover:shadow-md transition-shadow cursor-pointer group">
             <div className="text-yellow-400 mb-4 group-hover:scale-110 transition-transform">
               <svg
@@ -304,7 +303,6 @@ const DashboardPage = () => {
             <p className="text-red-900 font-bold text-2xl mt-auto">5 pending</p>
           </div>
 
-          {/* Card 3: Loan */}
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center hover:shadow-md transition-shadow cursor-pointer group">
             <div className="text-yellow-400 mb-4 group-hover:scale-110 transition-transform">
               <svg
@@ -328,7 +326,6 @@ const DashboardPage = () => {
 
         {/* --- 3. NOTIFICATIONS & STATS GRID --- */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Recent Notifications */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold">Recent Notifications</h2>
@@ -357,7 +354,6 @@ const DashboardPage = () => {
             </div>
           </div>
 
-          {/* Quick Stats */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <h2 className="text-xl font-bold mb-6">Quick Stats</h2>
             <div className="grid grid-cols-2 gap-6">
@@ -385,7 +381,7 @@ const DashboardPage = () => {
             <h2 className="text-2xl font-bold text-gray-900">
               Featured Listings
             </h2>
-            <a
+            <Link
               href="/marketplace"
               className="text-red-900 font-semibold hover:underline flex items-center gap-1"
             >
@@ -403,7 +399,7 @@ const DashboardPage = () => {
                   d="M14 2.5a.5.5 0 0 0-.5-.5h-6a.5.5 0 0 0 0 1h4.793L2.146 13.146a.5.5 0 0 0 .708.708L13 3.707V8.5a.5.5 0 0 0 1 0z"
                 />
               </svg>
-            </a>
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-6">
@@ -412,11 +408,8 @@ const DashboardPage = () => {
                 key={item.id}
                 className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow group"
               >
-                {/* Image Container */}
                 <div className="h-40 bg-gray-200 relative overflow-hidden">
-                  {/* Using a generic SVG placeholder if Next/Image src is placeholder */}
                   <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
-                    {/* Placeholder Icon */}
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="40"
@@ -430,7 +423,6 @@ const DashboardPage = () => {
                     </svg>
                   </div>
                 </div>
-
                 <div className="p-4">
                   <h4 className="font-bold text-gray-900 text-sm mb-1 truncate">
                     {item.title}
