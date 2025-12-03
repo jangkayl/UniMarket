@@ -121,10 +121,13 @@ const AccordionItem = ({
 const HelpPage = () => {
   return (
     <div className="bg-white min-h-screen flex flex-col font-sans">
-      <Navbar />
+      {/* Added z-index wrapper for Navbar */}
+      <div className="sticky top-0 z-50 w-full">
+        <Navbar />
+      </div>
 
       {/* Hero Section Wrapper (White Background) */}
-      <div className="py-16 px-6 flex flex-col items-center">
+      <div className="py-16 px-6 flex flex-col items-center relative z-0">
         {/* The Colored Card containing ONLY text */}
         <div className="bg-[#FFF0F0] rounded-3xl p-10 md:p-16 text-center max-w-[1200px] mx-auto mb-10">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
@@ -138,7 +141,7 @@ const HelpPage = () => {
         </div>
 
         {/* Search Bar (Outside the colored card) */}
-        <div className="relative w-full max-w-xl">
+        <div className="relative w-full max-w-xl z-10">
           <input
             type="text"
             placeholder="Search for answers..."
@@ -160,7 +163,7 @@ const HelpPage = () => {
       </div>
 
       {/* FAQ Sections */}
-      <main className="flex-grow w-full max-w-4xl mx-auto px-6 pb-16 space-y-8">
+      <main className="flex-grow w-full max-w-4xl mx-auto px-6 pb-16 space-y-8 relative z-0">
         {faqData.map((section, index) => (
           <div
             key={index}
