@@ -123,7 +123,7 @@ const Navbar = () => {
 
             {/* Profile Link */}
             <Link
-              href="/settings"
+              href="/profile"
               className="flex items-center gap-2 text-red-100 hover:text-white transition-colors"
             >
               <svg

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
@@ -46,7 +47,6 @@ const SettingsPage = () => {
           <div className="border border-gray-200 rounded-2xl p-8 shadow-sm hover:shadow-md transition-shadow h-full flex flex-col">
             <div className="flex gap-4 mb-6">
               <div className="text-red-800 mt-1">
-                {/* Person Icon */}
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="24"
@@ -63,6 +63,52 @@ const SettingsPage = () => {
                 <p className="text-gray-500 text-sm mt-1">
                   Manage your login credentials and personal details.
                 </p>
+              </div>
+            </div>
+
+            {/* --- NEW SECTION: Profile Picture Edit --- */}
+            <div className="flex items-center gap-6 mb-8 pb-8 border-b border-gray-100">
+              <div className="relative w-20 h-20 rounded-full bg-gray-200 overflow-hidden group cursor-pointer">
+                {/* Placeholder Avatar */}
+                <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="40"
+                    height="40"
+                    fill="currentColor"
+                    className="bi bi-person-fill"
+                    viewBox="0 0 16 16"
+                  >
+                    <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6" />
+                  </svg>
+                </div>
+
+                {/* Overlay on Hover */}
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    fill="white"
+                    className="bi bi-camera-fill"
+                    viewBox="0 0 16 16"
+                  >
+                    <path d="M10.5 8.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0" />
+                    <path d="M2 4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1.172a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 9.172 2H6.828a2 2 0 0 0-1.414.586l-.828.828A2 2 0 0 1 3.172 4zm.5 2a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1m9 2.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0" />
+                  </svg>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-gray-900">Profile Picture</h3>
+                <div className="flex gap-3 mt-2">
+                  <button className="text-xs font-bold text-white bg-red-900 px-3 py-2 rounded-md hover:bg-red-800 transition-colors">
+                    Change Picture
+                  </button>
+                  <button className="text-xs font-bold text-red-900 border border-red-900 px-3 py-2 rounded-md hover:bg-red-50 transition-colors">
+                    Remove
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -119,9 +165,9 @@ const SettingsPage = () => {
 
           {/* ---------------- CARD 2: NOTIFICATION PREFERENCES ---------------- */}
           <div className="border border-gray-200 rounded-2xl p-8 shadow-sm hover:shadow-md transition-shadow h-full flex flex-col">
+            {/* ... (Notification Content remains the same) ... */}
             <div className="flex gap-4 mb-6">
               <div className="text-red-800 mt-1">
-                {/* Bell Icon */}
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="24"
@@ -160,7 +206,6 @@ const SettingsPage = () => {
                   </p>
                 </div>
               </label>
-
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -177,7 +222,6 @@ const SettingsPage = () => {
                   </p>
                 </div>
               </label>
-
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -195,7 +239,6 @@ const SettingsPage = () => {
                 </div>
               </label>
             </div>
-
             <button className="w-full bg-gray-100 text-gray-800 font-semibold py-3 rounded-lg hover:bg-gray-200 transition-colors mt-8">
               Save Preferences
             </button>
@@ -203,9 +246,9 @@ const SettingsPage = () => {
 
           {/* ---------------- CARD 3: PRIVACY & SECURITY ---------------- */}
           <div className="border border-gray-200 rounded-2xl p-8 shadow-sm hover:shadow-md transition-shadow h-full flex flex-col">
+            {/* ... (Privacy Content remains the same) ... */}
             <div className="flex gap-4 mb-6">
               <div className="text-red-800 mt-1">
-                {/* Shield Icon */}
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="24"
@@ -239,7 +282,6 @@ const SettingsPage = () => {
               <p className="text-sm text-gray-500 -mt-4">
                 Allow UniMarket to share anonymous data for product improvement.
               </p>
-
               <div className="flex justify-between items-center pt-2">
                 <span className="font-bold text-gray-800">
                   Two-Factor Authentication
@@ -253,12 +295,10 @@ const SettingsPage = () => {
                 Add an extra layer of security to your account.
               </p>
             </div>
-
             <div className="mt-8 space-y-4">
               <button className="w-full bg-white border border-red-900 text-red-900 font-semibold py-3 rounded-lg hover:bg-gray-50 transition-colors">
                 View Privacy Policy
               </button>
-
               <button className="w-full text-red-900 font-semibold hover:underline text-sm text-center">
                 Manage Connected Apps
               </button>
