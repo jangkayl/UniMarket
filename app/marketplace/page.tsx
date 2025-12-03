@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link"; // <--- 1. IMPORT ADDED
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
@@ -373,8 +374,10 @@ const MarketplaceContent = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {listings.map((item) => (
-              <div
+              /* 2. REPLACED DIV WITH LINK */
+              <Link
                 key={item.id}
+                href={`/marketplace/item/${item.id}`}
                 className="bg-white border border-gray-200 rounded-2xl overflow-hidden hover:shadow-lg transition-all duration-300 group cursor-pointer flex flex-col"
               >
                 <div className="h-60 bg-gray-200 relative overflow-hidden">
@@ -416,7 +419,7 @@ const MarketplaceContent = () => {
                     </span>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
