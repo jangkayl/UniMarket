@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
@@ -89,11 +89,20 @@ const listings = [
   },
 ];
 
-const MarketplacePage = () => {
+// --- Internal Component handling the logic ---
+const MarketplaceContent = () => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const searchParams = useSearchParams();
   const router = useRouter();
+
+  // Trigger Modal if URL has ?create=true
+  useEffect(() => {
+    if (searchParams.get("create") === "true") {
+      setIsModalOpen(true);
+    }
+  }, [searchParams]);
 
   const toggleCategory = (cat: string) => {
     if (selectedCategories.includes(cat)) {
@@ -105,22 +114,19 @@ const MarketplacePage = () => {
 
   const closeModal = () => {
     setIsModalOpen(false);
-    // Remove the query param so refreshing doesn't re-open it immediately
+    // Remove the query param nicely
     router.replace("/marketplace", { scroll: false });
   };
 
   const handlePostItem = (e: React.FormEvent) => {
     e.preventDefault();
     closeModal();
-    // Show success toast
     setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000); // Hide after 3 seconds
+    setTimeout(() => setShowToast(false), 3000);
   };
 
   return (
-    <div className="bg-white min-h-screen flex flex-col font-sans text-gray-900 relative">
-      <Navbar />
-
+    <>
       {/* --- TOAST NOTIFICATION --- */}
       {showToast && (
         <div className="fixed top-24 right-10 z-[70] bg-green-500 text-white px-6 py-4 rounded-xl shadow-lg flex items-center gap-3 animate-fade-in-down">
@@ -144,15 +150,12 @@ const MarketplacePage = () => {
       {/* --- MODAL (POP-UP) --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={closeModal}
           ></div>
 
-          {/* Modal Content */}
           <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto relative z-10 shadow-2xl animate-fade-in-up">
-            {/* Modal Header */}
             <div className="sticky top-0 bg-white border-b border-gray-100 p-6 flex justify-between items-center z-10">
               <h2 className="text-2xl font-bold">Create New Listing</h2>
               <button
@@ -172,7 +175,6 @@ const MarketplacePage = () => {
               </button>
             </div>
 
-            {/* Modal Form */}
             <div className="p-8">
               <form className="space-y-6" onSubmit={handlePostItem}>
                 {/* Image Upload */}
@@ -228,30 +230,6 @@ const MarketplacePage = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-bold text-sm mb-2">
-                      Item Name
-                    </label>
-                    <input
-                      required
-                      type="text"
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-900 text-sm"
-                      placeholder="e.g., Calculus Textbook"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-sm mb-2">
-                      Price (PHP)
-                    </label>
-                    <input
-                      required
-                      type="text"
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-900 text-sm"
-                      placeholder="e.g., 50.00"
-                    />
-                  </div>
-                </div>
                 <div>
                   <label className="block font-bold text-sm mb-2">
                     Description
@@ -311,7 +289,8 @@ const MarketplacePage = () => {
         </div>
       )}
 
-      <main className="flex-grow w-full max-w-[1500px] mx-auto px-6 py-8 flex flex-col lg:flex-row gap-8">
+      {/* --- MAIN CONTENT AREA --- */}
+      <div className="flex-grow w-full max-w-[1500px] mx-auto px-6 py-8 flex flex-col lg:flex-row gap-8">
         {/* --- LEFT SIDEBAR: FILTERS --- */}
         <aside className="w-full lg:w-64 flex-shrink-0 lg:sticky lg:top-32 lg:h-[calc(100vh-10rem)] overflow-y-auto scrollbar-hide self-start">
           <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
@@ -354,8 +333,6 @@ const MarketplacePage = () => {
             </div>
 
             <hr className="my-6 border-gray-100" />
-
-            {/* ... other filters (Price, Condition, etc.) kept simple for brevity ... */}
             <div className="mb-6">
               <h3 className="font-semibold text-gray-800 mb-3">Price Range</h3>
             </div>
@@ -369,15 +346,12 @@ const MarketplacePage = () => {
           </div>
         </aside>
 
-        {/* --- MAIN CONTENT AREA --- */}
+        {/* --- CONTENT RIGHT SIDE --- */}
         <div className="flex-grow">
-          {/* Header */}
           <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
             <h1 className="text-3xl font-bold text-gray-900">
               Browse Marketplace
             </h1>
-
-            {/* Post Item Button (Triggers Modal) */}
             <button
               onClick={() => setIsModalOpen(true)}
               className="flex items-center gap-2 bg-[#8B0000] text-white px-6 py-3 rounded-full font-semibold hover:bg-red-900 transition-transform transform hover:scale-105 shadow-md cursor-pointer"
@@ -397,7 +371,6 @@ const MarketplacePage = () => {
             </button>
           </div>
 
-          {/* Product Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {listings.map((item) => (
               <div
@@ -419,7 +392,6 @@ const MarketplacePage = () => {
                     </svg>
                   </div>
                 </div>
-
                 <div className="p-5 flex-grow flex flex-col">
                   <h3 className="font-bold text-xl text-gray-900 mb-2 truncate group-hover:text-red-900 transition-colors">
                     {item.title}
@@ -439,20 +411,6 @@ const MarketplacePage = () => {
                     {item.price}
                   </div>
                   <div className="mt-auto flex items-center gap-3 pt-4 border-t border-gray-100">
-                    <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="currentColor"
-                        className="w-full h-full p-1 text-gray-500"
-                        viewBox="0 0 16 16"
-                      >
-                        <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0" />
-                        <path
-                          fillRule="evenodd"
-                          d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"
-                        />
-                      </svg>
-                    </div>
                     <span className="text-sm font-medium text-gray-600 hover:text-gray-900">
                       {item.seller}
                     </span>
@@ -462,7 +420,21 @@ const MarketplacePage = () => {
             ))}
           </div>
         </div>
-      </main>
+      </div>
+    </>
+  );
+};
+
+// --- MAIN PAGE WRAPPER ---
+const MarketplacePage = () => {
+  return (
+    <div className="bg-white min-h-screen flex flex-col font-sans text-gray-900 relative">
+      <Navbar />
+
+      {/* Suspense is required for useSearchParams */}
+      <Suspense fallback={<div className="p-20 text-center">Loading...</div>}>
+        <MarketplaceContent />
+      </Suspense>
 
       <Footer />
     </div>
