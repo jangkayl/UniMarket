@@ -225,7 +225,7 @@ const MarketplacePage = () => {
                   </div>
                   <div>
                     <label className="block font-bold text-sm mb-2">
-                      Price (CAD)
+                      Price (PHP)
                     </label>
                     <input
                       required
