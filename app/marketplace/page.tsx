@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
@@ -93,15 +93,7 @@ const MarketplacePage = () => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
-  const searchParams = useSearchParams();
   const router = useRouter();
-
-  // Check URL params on mount or change
-  useEffect(() => {
-    if (searchParams.get("create") === "true") {
-      setIsModalOpen(true);
-    }
-  }, [searchParams]);
 
   const toggleCategory = (cat: string) => {
     if (selectedCategories.includes(cat)) {
@@ -225,7 +217,7 @@ const MarketplacePage = () => {
                   </div>
                   <div>
                     <label className="block font-bold text-sm mb-2">
-                      Price (PHP)
+                      Price (CAD)
                     </label>
                     <input
                       required
@@ -236,6 +228,30 @@ const MarketplacePage = () => {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-bold text-sm mb-2">
+                      Item Name
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-900 text-sm"
+                      placeholder="e.g., Calculus Textbook"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-sm mb-2">
+                      Price (PHP)
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-900 text-sm"
+                      placeholder="e.g., 50.00"
+                    />
+                  </div>
+                </div>
                 <div>
                   <label className="block font-bold text-sm mb-2">
                     Description
