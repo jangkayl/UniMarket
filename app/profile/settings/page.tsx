@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import Navbar from "../components/Navbar";
-import Footer from "../components/Footer";
+import Navbar from "../../components/Navbar";
+import Footer from "../../components/Footer";
 
 const SettingsPage = () => {
   // State for toggle switches and checkboxes

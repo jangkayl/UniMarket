@@ -11,7 +11,7 @@ const activeListings = [
     id: 1,
     title: "Calculus III Textbook",
     price: "$45.00",
-    image: "/images/book_calc.jpg", // Using path from your previous context
+    image: "/images/book_calc.jpg",
   },
   {
     id: 2,
@@ -29,7 +29,7 @@ const activeListings = [
     id: 4,
     title: "Mini Coffee Maker",
     price: "$25.00",
-    image: "/images/coffee.jpg", // Placeholder name
+    image: "/images/coffee.jpg",
   },
   {
     id: 5,
@@ -41,7 +41,7 @@ const activeListings = [
     id: 6,
     title: "Bluetooth Speaker",
     price: "$35.00",
-    image: "/images/speaker.jpg", // Placeholder name
+    image: "/images/speaker.jpg",
   },
 ];
 
@@ -59,7 +59,6 @@ const ProfilePage = () => {
             {/* 1. Profile Card */}
             <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm flex flex-col items-center text-center">
               <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center text-gray-400 mb-4 overflow-hidden">
-                {/* Placeholder Avatar Icon */}
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="40"
@@ -99,7 +98,6 @@ const ProfilePage = () => {
                   Excellent
                 </span>
               </div>
-              {/* Progress Bar */}
               <div className="w-full bg-red-100 rounded-full h-2.5">
                 <div
                   className="bg-red-900 h-2.5 rounded-full"
@@ -171,7 +169,11 @@ const ProfilePage = () => {
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
               <h3 className="font-bold text-gray-900 mb-4">Quick Actions</h3>
               <div className="space-y-3">
-                <button className="flex items-center gap-3 text-sm font-medium text-gray-700 hover:text-red-900 transition-colors w-full text-left">
+                {/* REVIEWS LINK */}
+                <Link
+                  href="/profile/reviews"
+                  className="flex items-center gap-3 text-sm font-medium text-gray-700 hover:text-red-900 transition-colors w-full text-left"
+                >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="16"
@@ -184,9 +186,11 @@ const ProfilePage = () => {
                     <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zm10-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1" />
                   </svg>
                   Reviews & Ratings
-                </button>
+                </Link>
+
+                {/* SETTINGS LINK */}
                 <Link
-                  href="/settings"
+                  href="/profile/settings"
                   className="flex items-center gap-3 text-sm font-medium text-gray-700 hover:text-red-900 transition-colors w-full text-left"
                 >
                   <svg
@@ -202,7 +206,12 @@ const ProfilePage = () => {
                   </svg>
                   Settings
                 </Link>
-                <button className="flex items-center gap-3 text-sm font-medium text-gray-700 hover:text-red-900 transition-colors w-full text-left">
+
+                {/* PAYMENT & WALLET LINK */}
+                <Link
+                  href="/profile/wallet"
+                  className="flex items-center gap-3 text-sm font-medium text-gray-700 hover:text-red-900 transition-colors w-full text-left"
+                >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="16"
@@ -214,7 +223,7 @@ const ProfilePage = () => {
                     <path d="M12.136.326A1.5 1.5 0 0 1 14 1.78V3h.5A1.5 1.5 0 0 1 16 4.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 13.5v-9a1.5 1.5 0 0 1 1.432-1.499L12.136.326zM5.562 3H13V1.78a.5.5 0 0 0-.621-.484L5.562 3zM1.5 4a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 0-.5-.5h-13z" />
                   </svg>
                   Payment & Wallet
-                </button>
+                </Link>
               </div>
             </div>
           </aside>
