@@ -36,7 +36,7 @@ const SettingsPage = () => {
 		<div className="bg-white min-h-screen flex flex-col text-gray-900">
 			<Navbar />
 
-			<main className="flex-grow w-full max-w-[1600px] mx-auto px-6 py-10">
+			<main className="grow w-full max-w-[1600px] mx-auto px-6 py-10">
 				<h1 className="text-4xl font-bold mb-10 text-black">Settings</h1>
 
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
@@ -182,7 +182,7 @@ const SettingsPage = () => {
 							</div>
 						</div>
 
-						<div className="space-y-6 flex-grow">
+						<div className="space-y-6 grow">
 							<label className="flex items-start gap-3 cursor-pointer">
 								<input
 									type="checkbox"
@@ -261,7 +261,7 @@ const SettingsPage = () => {
 							</div>
 						</div>
 
-						<div className="space-y-6 flex-grow">
+						<div className="space-y-6 grow">
 							<div className="flex justify-between items-center">
 								<span className="font-bold text-gray-800">
 									Enable Data Sharing
