@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useActionState } from "react";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
+import { changePassword } from "@/app/actions/settings"; // Import the action
 
 // Helper component for the Toggle Switch
 const ToggleSwitch = ({
@@ -25,12 +26,18 @@ const ToggleSwitch = ({
 );
 
 const SettingsPage = () => {
-	// State for toggle switches and checkboxes
+	// State for toggle switches
 	const [emailNotif, setEmailNotif] = useState(true);
 	const [pushNotif, setPushNotif] = useState(true);
 	const [inAppNotif, setInAppNotif] = useState(false);
 	const [dataSharing, setDataSharing] = useState(false);
 	const [twoFactor, setTwoFactor] = useState(true);
+
+	// Form Action for Password Change
+	const [state, formAction, isPending] = useActionState(
+		changePassword,
+		undefined
+	);
 
 	return (
 		<div className="bg-white min-h-screen flex flex-col text-gray-900">
@@ -62,10 +69,9 @@ const SettingsPage = () => {
 							</div>
 						</div>
 
-						{/* --- NEW SECTION: Profile Picture Edit --- */}
+						{/* Profile Picture Edit */}
 						<div className="flex items-center gap-6 mb-8 pb-8 border-b border-gray-100">
 							<div className="relative w-20 h-20 rounded-full bg-gray-200 overflow-hidden group cursor-pointer">
-								{/* Placeholder Avatar */}
 								<div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -77,8 +83,6 @@ const SettingsPage = () => {
 										<path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6" />
 									</svg>
 								</div>
-
-								{/* Overlay on Hover */}
 								<div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -92,7 +96,6 @@ const SettingsPage = () => {
 									</svg>
 								</div>
 							</div>
-
 							<div>
 								<h3 className="font-semibold text-gray-900">Profile Picture</h3>
 								<div className="flex gap-3 mt-2">
@@ -106,60 +109,94 @@ const SettingsPage = () => {
 							</div>
 						</div>
 
-						<form className="space-y-4">
+						{/* --- PASSWORD CHANGE FORM --- */}
+						<form
+							action={formAction}
+							className="space-y-4">
 							<div>
 								<label className="block text-sm font-semibold text-gray-700 mb-1">
 									Current Password
 								</label>
 								<input
+									name="currentPassword"
 									type="password"
 									placeholder="********"
 									className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-red-800"
 								/>
+								{state?.errors?.currentPassword && (
+									<p className="text-red-500 text-xs mt-1">
+										{state.errors.currentPassword[0]}
+									</p>
+								)}
 							</div>
 							<div>
 								<label className="block text-sm font-semibold text-gray-700 mb-1">
 									New Password
 								</label>
 								<input
+									name="newPassword"
 									type="password"
 									placeholder="********"
 									className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-red-800"
 								/>
+								{state?.errors?.newPassword && (
+									<p className="text-red-500 text-xs mt-1">
+										{state.errors.newPassword[0]}
+									</p>
+								)}
 							</div>
 							<div>
 								<label className="block text-sm font-semibold text-gray-700 mb-1">
 									Confirm New Password
 								</label>
 								<input
+									name="confirmPassword"
 									type="password"
 									placeholder="********"
 									className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-red-800"
 								/>
+								{state?.errors?.confirmPassword && (
+									<p className="text-red-500 text-xs mt-1">
+										{state.errors.confirmPassword[0]}
+									</p>
+								)}
 							</div>
-							<button className="w-full bg-red-900 text-white font-semibold py-3 rounded-lg hover:bg-red-800 transition-colors">
-								Update Password
+
+							<button
+								type="submit"
+								disabled={isPending}
+								className="w-full bg-red-900 text-white font-semibold py-3 rounded-lg hover:bg-red-800 transition-colors disabled:bg-gray-400">
+								{isPending ? "Updating..." : "Update Password"}
 							</button>
 
-							<div className="pt-4">
-								<label className="block text-sm font-semibold text-gray-700 mb-1">
-									Email Address
-								</label>
-								<input
-									type="email"
-									defaultValue="student@cit.edu"
-									className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-red-800 bg-gray-50"
-								/>
-							</div>
-							<button className="w-full bg-white border border-red-900 text-red-900 font-semibold py-3 rounded-lg hover:bg-gray-50 transition-colors">
+							{/* Success/Error Message */}
+							{state?.message && (
+								<p
+									className={`text-center text-sm mt-2 ${
+										state.success ? "text-green-600" : "text-red-500"
+									}`}>
+									{state.message}
+								</p>
+							)}
+						</form>
+
+						<div className="pt-8 mt-4 border-t border-gray-100">
+							<label className="block text-sm font-semibold text-gray-700 mb-1">
+								Email Address
+							</label>
+							<input
+								type="email"
+								defaultValue="student@cit.edu"
+								className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-red-800 bg-gray-50"
+							/>
+							<button className="w-full bg-white border border-red-900 text-red-900 font-semibold py-3 rounded-lg hover:bg-gray-50 transition-colors mt-4">
 								Update Email
 							</button>
-						</form>
+						</div>
 					</div>
 
 					{/* ---------------- CARD 2: NOTIFICATION PREFERENCES ---------------- */}
 					<div className="border border-gray-200 rounded-2xl p-8 shadow-sm hover:shadow-md transition-shadow h-full flex flex-col">
-						{/* ... (Notification Content remains the same) ... */}
 						<div className="flex gap-4 mb-6">
 							<div className="text-red-800 mt-1">
 								<svg
@@ -239,7 +276,6 @@ const SettingsPage = () => {
 
 					{/* ---------------- CARD 3: PRIVACY & SECURITY ---------------- */}
 					<div className="border border-gray-200 rounded-2xl p-8 shadow-sm hover:shadow-md transition-shadow h-full flex flex-col">
-						{/* ... (Privacy Content remains the same) ... */}
 						<div className="flex gap-4 mb-6">
 							<div className="text-red-800 mt-1">
 								<svg
