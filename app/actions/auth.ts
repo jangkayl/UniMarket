@@ -137,3 +137,9 @@ export async function loginUser(
 		return { message: "Failed to connect to login server." };
 	}
 }
+
+// --- LOGOUT ACTION ---
+export async function logoutUser() {
+  const cookieStore = await cookies();
+  cookieStore.delete('session');
+}
