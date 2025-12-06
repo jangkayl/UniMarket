@@ -125,3 +125,118 @@ export async function createItem(
 		return { message: "An unexpected error occurred. Please try again." };
 	}
 }
+
+// --- UPDATE ITEM ACTION ---
+export async function updateItem(
+	prevState: FormState,
+	formData: FormData
+): Promise<FormState> {
+	const itemId = formData.get("itemId");
+	const currentPhotoId = formData.get("currentPhotoId");
+
+	// 1. Validate Form Data
+	const validatedFields = CreateItemSchema.safeParse({
+		itemName: formData.get("itemName"),
+		category: formData.get("category"),
+		description: formData.get("description"),
+		transactionType: formData.get("transactionType"),
+		condition: formData.get("condition"),
+		price: formData.get("price"),
+		rentalFee: formData.get("rentalFee"),
+		rentalDurationDays: formData.get("rentalDurationDays"),
+	});
+
+	if (!validatedFields.success) {
+		return {
+			errors: validatedFields.error.flatten().fieldErrors,
+			message: "Please check your inputs.",
+		};
+	}
+
+	const {
+		itemName,
+		category,
+		description,
+		transactionType,
+		condition,
+		price,
+		rentalFee,
+		rentalDurationDays,
+	} = validatedFields.data;
+
+	try {
+		// 2. Verify Session
+		const cookieStore = await cookies();
+		const sessionCookie = cookieStore.get("session");
+		if (!sessionCookie) return { message: "Unauthorized." };
+		const sessionUser = JSON.parse(sessionCookie.value);
+		const sellerId = Number(sessionUser.studentId);
+
+		// 3. Prepare Payload (Include existing photo ID)
+		const itemPayload = {
+			itemName,
+			category,
+			description,
+			transactionType,
+			condition,
+			availabilityStatus: "AVAILABLE", // Or fetch existing status if you want to preserve "SOLD"
+			sellerId: sellerId,
+			seller: { studentId: sellerId },
+			price: transactionType === "Sell" ? price : null,
+			rentalFee: transactionType === "Rent" ? rentalFee : null,
+			rentalDurationDays:
+				transactionType === "Rent" ? rentalDurationDays : null,
+			itemPhotoId: currentPhotoId ? Number(currentPhotoId) : null,
+		};
+
+		// 4. Send PUT Request
+		const response = await fetch(
+			`${process.env.SPRING_BOOT_API_URL}/api/items/updateItem/${itemId}`,
+			{
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(itemPayload),
+			}
+		);
+
+		if (!response.ok) {
+			return { message: "Failed to update item." };
+		}
+
+		revalidatePath("/profile");
+		revalidatePath(`/marketplace/item/${itemId}`);
+
+		return { success: true, message: "Item updated successfully!" };
+	} catch (error) {
+		console.error("Update error:", error);
+		return { message: "An error occurred." };
+	}
+}
+
+// --- DELETE ITEM ACTION ---
+export async function deleteItemAction(itemId: number): Promise<FormState> {
+	try {
+		const cookieStore = await cookies();
+		const sessionCookie = cookieStore.get("session");
+		if (!sessionCookie) return { message: "Unauthorized." };
+
+		const response = await fetch(
+			`${process.env.SPRING_BOOT_API_URL}/api/items/deleteItem/${itemId}`,
+			{
+				method: "DELETE",
+			}
+		);
+
+		if (!response.ok) {
+			return { message: "Failed to delete item." };
+		}
+
+		revalidatePath("/marketplace");
+		revalidatePath("/profile");
+
+		return { success: true, message: "Item deleted successfully." };
+	} catch (error) {
+		console.error("Delete error:", error);
+		return { message: "An error occurred while deleting." };
+	}
+}
