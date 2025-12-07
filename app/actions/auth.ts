@@ -140,6 +140,6 @@ export async function loginUser(
 
 // --- LOGOUT ACTION ---
 export async function logoutUser() {
-  const cookieStore = await cookies();
-  cookieStore.delete('session');
+	const cookieStore = await cookies();
+	cookieStore.delete("session");
 }

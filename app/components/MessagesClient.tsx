@@ -237,7 +237,9 @@ const MessagesClient = ({
 
 	const getAvatarUrl = (photo: string | null) => {
 		return photo
-			? `${process.env.SPRING_BOOT_API_URL}/api/students/images/${photo}`
+			? `${
+					process.env.SPRING_BOOT_API_URL || "http://localhost:8080"
+			  }/api/students/images/${photo}`
 			: null;
 	};
 

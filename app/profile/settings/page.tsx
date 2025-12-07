@@ -27,7 +27,9 @@ const SettingsPage = async () => {
 	let user: User = sessionUser;
 	try {
 		const res = await fetch(
-			`${process.env.SPRING_BOOT_API_URL}/api/students/${sessionUser.studentId}`,
+			`${
+				process.env.SPRING_BOOT_API_URL || "http://localhost:8080"
+			}/api/students/${sessionUser.studentId}`,
 			{ cache: "no-store" }
 		);
 		if (res.ok) {
