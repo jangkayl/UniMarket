@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import {
 	getConversationAction,
 	sendMessageAction,
@@ -46,16 +47,19 @@ const MessagesClient = ({
 }: MessagesClientProps) => {
 	const router = useRouter();
 	const searchParams = useSearchParams();
+	const messagesEndRef = useRef<HTMLDivElement>(null);
 
-	// 1. Initialize Contacts State
+	// 1. Initialize Contacts State (Check URL Params IMMEDIATELY)
 	const [contacts, setContacts] = useState<Contact[]>(() => {
 		const chatWithId = searchParams.get("chatWith");
 		const sellerNameParam = searchParams.get("sellerName");
+		const sellerPicParam = searchParams.get("sellerPic"); // Get profile picture param
 
 		if (chatWithId) {
 			const contactId = Number(chatWithId);
 			const exists = initialContacts.some((c) => c.studentId === contactId);
 
+			// If contact is NOT in the list, create a temporary one using the URL data
 			if (!exists) {
 				let fName = "User";
 				let lName = `#${contactId}`;
@@ -74,7 +78,10 @@ const MessagesClient = ({
 					studentId: contactId,
 					firstName: fName,
 					lastName: lName,
-					profilePicture: null,
+					// FIX: Use the picture from the URL if available, otherwise null
+					profilePicture: sellerPicParam
+						? decodeURIComponent(sellerPicParam)
+						: null,
 				};
 				return [tempContact, ...initialContacts];
 			}
@@ -94,22 +101,27 @@ const MessagesClient = ({
 
 	const [messages, setMessages] = useState<Message[]>([]);
 
-	// --- UPDATED: Initialize newMessage with refItem check ---
+	// Initialize New Message with refItem
 	const [newMessage, setNewMessage] = useState(() => {
 		const refItem = searchParams.get("refItem");
 		if (refItem) {
-			return `Hi, I'm interested in your "${refItem}". Is it still available?`;
+			try {
+				return `Hi, I'm interested in your "${decodeURIComponent(
+					refItem
+				)}". Is it still available?`;
+			} catch (e) {
+				return "";
+			}
 		}
 		return "";
 	});
-	// --------------------------------------------------------
 
 	// UI States for Delete
 	const [showDeleteModal, setShowDeleteModal] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [showToast, setShowToast] = useState(false);
 
-	// 2. Fetch Messages & Polling (Existing logic preserved)
+	// 2. Fetch Messages for Active Contact (Polling)
 	useEffect(() => {
 		if (!activeContactId) return;
 
@@ -119,6 +131,30 @@ const MessagesClient = ({
 				activeContactId
 			);
 			setMessages(data);
+
+			if (data && data.length > 0) {
+				const firstMsg = data[0];
+				const otherUser =
+					firstMsg.sender?.studentId === currentUser.studentId
+						? firstMsg.receiver
+						: firstMsg.sender;
+
+				if (otherUser) {
+					setContacts((prev) => {
+						return prev.map((c) => {
+							if (c.studentId === otherUser.studentId) {
+								return {
+									...c,
+									firstName: otherUser.firstName,
+									lastName: otherUser.lastName,
+									profilePicture: otherUser.profilePicture || c.profilePicture,
+								};
+							}
+							return c;
+						});
+					});
+				}
+			}
 		};
 
 		fetchMessages();
@@ -126,6 +162,11 @@ const MessagesClient = ({
 		const interval = setInterval(fetchMessages, 3000);
 		return () => clearInterval(interval);
 	}, [activeContactId, currentUser.studentId]);
+
+	// 3. Scroll to bottom
+	useEffect(() => {
+		messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+	}, [messages, activeContactId]);
 
 	// 4. Send Message
 	const handleSendMessage = async (e: React.FormEvent) => {
@@ -176,7 +217,6 @@ const MessagesClient = ({
 			if (updatedContacts.length > 0) {
 				const nextId = updatedContacts[0].studentId;
 				setActiveContactId(nextId);
-				// Clear message input when switching via delete
 				setNewMessage("");
 				router.push(`/messages?chatWith=${nextId}`, { scroll: false });
 			} else {
@@ -196,7 +236,7 @@ const MessagesClient = ({
 		return photo
 			? `${
 					process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-			  }/api/items/images/${photo}`
+			  }/api/students/images/${photo}`
 			: null;
 	};
 
@@ -270,8 +310,7 @@ const MessagesClient = ({
 							onClick={() => {
 								if (activeContactId !== contact.studentId) {
 									setActiveContactId(contact.studentId);
-									// Clear new message input when switching chats manually
-									setNewMessage("");
+									setNewMessage(""); // Clear auto-filled message when manually switching
 									router.push(`/messages?chatWith=${contact.studentId}`, {
 										scroll: false,
 									});
@@ -284,11 +323,11 @@ const MessagesClient = ({
 							}`}>
 							<div className="w-12 h-12 rounded-full bg-gray-200 overflow-hidden shrink-0 border border-gray-100 relative">
 								{contact.profilePicture ? (
-									// eslint-disable-next-line @next/next/no-img-element
-									<img
+									<Image
 										src={getAvatarUrl(contact.profilePicture)!}
 										alt="Avatar"
-										className="w-full h-full object-cover"
+										fill
+										className="object-cover"
 									/>
 								) : (
 									<div className="w-full h-full flex items-center justify-center text-gray-400">
@@ -334,11 +373,11 @@ const MessagesClient = ({
 							<div className="flex items-center gap-4">
 								<div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden relative border border-gray-100">
 									{activeContact?.profilePicture ? (
-										// eslint-disable-next-line @next/next/no-img-element
-										<img
+										<Image
 											src={getAvatarUrl(activeContact.profilePicture)!}
 											alt="Avatar"
-											className="w-full h-full object-cover"
+											fill
+											className="object-cover"
 										/>
 									) : (
 										<div className="w-full h-full flex items-center justify-center text-gray-400">
@@ -387,7 +426,7 @@ const MessagesClient = ({
 							</button>
 						</div>
 
-						{/* Messages List - CSS AUTO SCROLL TO BOTTOM */}
+						{/* Messages List */}
 						<div className="grow p-6 overflow-y-auto bg-white flex flex-col-reverse gap-3 scrollbar-thin scrollbar-thumb-gray-200">
 							{[...messages].reverse().map((msg) => {
 								const isMe = msg.senderId === currentUser.studentId;
@@ -419,6 +458,7 @@ const MessagesClient = ({
 									</div>
 								);
 							})}
+							<div ref={messagesEndRef} />
 						</div>
 
 						{/* Input Area */}

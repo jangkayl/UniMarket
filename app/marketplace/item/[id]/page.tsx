@@ -11,6 +11,7 @@ interface ItemDetails {
 	itemName: string;
 	description: string;
 	price: number | null;
+	// Item Image Fields
 	itemPhoto: string | null;
 	itemPhotoId: number | null;
 	category: string;
@@ -21,9 +22,11 @@ interface ItemDetails {
 	rentalDurationDays: number | null;
 	createdAt: string;
 	updatedAt: string;
+	// Seller Fields
 	sellerId: number;
 	sellerFirstName?: string;
 	sellerLastName?: string;
+	sellerProfilePicture?: string | null; // Added field for seller avatar
 }
 
 const formatPrice = (amount: number | null | undefined) => {
@@ -44,6 +47,7 @@ const ItemDetailsPage = async ({
 	let item: ItemDetails | null = null;
 
 	try {
+		// 1. Fetch Item Details
 		const res = await fetch(
 			`${process.env.SPRING_BOOT_API_URL}/api/items/getItemById/${id}`,
 			{ cache: "no-store" }
@@ -55,6 +59,22 @@ const ItemDetailsPage = async ({
 		}
 
 		item = await res.json();
+
+		// 2. Fetch Seller Details (to get the profile picture if missing in Item DTO)
+		if (item && item.sellerId) {
+			try {
+				const sellerRes = await fetch(
+					`${process.env.SPRING_BOOT_API_URL}/api/students/${item.sellerId}`,
+					{ cache: "no-store" }
+				);
+				if (sellerRes.ok) {
+					const sellerData = await sellerRes.json();
+					item.sellerProfilePicture = sellerData.profilePicture;
+				}
+			} catch (err) {
+				console.error("Failed to fetch seller profile", err);
+			}
+		}
 	} catch (error) {
 		console.error("Error fetching item details:", error);
 		return (
@@ -80,11 +100,17 @@ const ItemDetailsPage = async ({
 		} catch (e) {}
 	}
 
-	// Determine Image URL
-	const imageUrl = item.itemPhoto
-		? `${process.env.SPRING_BOOT_API_URL}/api/items/images/${item.itemPhoto}`
-		: item.itemPhotoId
-		? `${process.env.SPRING_BOOT_API_URL}/uploads/items/${item.itemPhotoId}`
+	// 1. Item Image URL
+	let imageUrl = null;
+	if (item.itemPhoto) {
+		imageUrl = `${process.env.SPRING_BOOT_API_URL}/api/items/images/${item.itemPhoto}`;
+	} else if (item.itemPhotoId) {
+		imageUrl = `${process.env.SPRING_BOOT_API_URL}/uploads/items/${item.itemPhotoId}`;
+	}
+
+	// 2. Seller Profile Picture URL
+	const sellerPicUrl = item.sellerProfilePicture
+		? `${process.env.SPRING_BOOT_API_URL}/api/students/images/${item.sellerProfilePicture}`
 		: null;
 
 	const isRental = item.transactionType === "Rent";
@@ -95,12 +121,14 @@ const ItemDetailsPage = async ({
 			? `${item.sellerFirstName} ${item.sellerLastName}`
 			: `Student #${item.sellerId}`;
 
-	// FIX: Pass sellerName in the URL so the messages page knows who it is immediately
+	// FIX: Added &sellerPic param to pass the image filename
 	const chatUrl = `/messages?chatWith=${
 		item.sellerId
 	}&refItem=${encodeURIComponent(
 		item.itemName
-	)}&sellerName=${encodeURIComponent(sellerName)}`;
+	)}&sellerName=${encodeURIComponent(
+		sellerName
+	)}&sellerPic=${encodeURIComponent(item.sellerProfilePicture || "")}`;
 
 	return (
 		<div className="bg-gray-50 min-h-screen flex flex-col font-sans text-gray-900">
@@ -128,16 +156,17 @@ const ItemDetailsPage = async ({
 				</div>
 
 				<div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-					{/* LEFT: IMAGE */}
+					{/* LEFT: ITEM IMAGE */}
 					<div className="space-y-4">
 						<div className="w-full h-[500px] bg-white rounded-2xl border border-gray-200 overflow-hidden flex items-center justify-center relative shadow-sm">
 							{imageUrl ? (
-								// Use standard img tag
-								// eslint-disable-next-line @next/next/no-img-element
-								<img
+								<Image
 									src={imageUrl}
 									alt={item.itemName}
-									className="w-full h-full object-cover"
+									fill
+									className="object-cover"
+									priority
+									sizes="(max-width: 768px) 100vw, 50vw"
 								/>
 							) : (
 								<div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 flex-col gap-4">
@@ -246,18 +275,28 @@ const ItemDetailsPage = async ({
 
 						<div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm mb-6 mt-auto">
 							<div className="flex items-start gap-4">
-								<div className="w-12 h-12 bg-gray-100 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-gray-400 border border-gray-200">
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										fill="currentColor"
-										className="w-6 h-6"
-										viewBox="0 0 16 16">
-										<path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0" />
-										<path
-											fillRule="evenodd"
-											d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"
+								<div className="w-12 h-12 bg-gray-100 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-gray-400 border border-gray-200 relative">
+									{/* SELLER AVATAR */}
+									{sellerPicUrl ? (
+										<Image
+											src={sellerPicUrl}
+											alt={sellerName}
+											fill
+											className="object-cover"
 										/>
-									</svg>
+									) : (
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											fill="currentColor"
+											className="w-6 h-6"
+											viewBox="0 0 16 16">
+											<path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0" />
+											<path
+												fillRule="evenodd"
+												d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"
+											/>
+										</svg>
+									)}
 								</div>
 								<div className="grow">
 									<div className="flex justify-between items-center mb-1">
@@ -267,7 +306,6 @@ const ItemDetailsPage = async ({
 									</div>
 									{!isOwner && (
 										<div className="flex gap-3 mt-2">
-											{/* Chat Seller Button */}
 											<Link
 												href={chatUrl}
 												className="flex-1">

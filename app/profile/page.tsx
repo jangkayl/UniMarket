@@ -42,7 +42,20 @@ const ProfilePage = async () => {
 	}
 
 	// 3. Parse the user data
-	const user: User = JSON.parse(sessionCookie.value);
+	let user: User = JSON.parse(sessionCookie.value);
+
+	// OPTIONAL: Fetch fresh user data to ensure profile picture is up to date immediately after changes
+	try {
+		const res = await fetch(
+			`${process.env.SPRING_BOOT_API_URL}/api/students/${user.studentId}`,
+			{ cache: "no-store" }
+		);
+		if (res.ok) {
+			user = await res.json();
+		}
+	} catch (e) {
+		/* fallback to session data */
+	}
 
 	// 4. FETCH REAL LISTINGS from Spring Boot
 	let userItems: {
@@ -71,16 +84,13 @@ const ProfilePage = async () => {
 				const rawPrice = isRental ? item.rentalFee : item.price;
 				const priceDisplay = `₱${(rawPrice ?? 0).toFixed(2)}`;
 
-				// --- FIXED IMAGE LOGIC ---
+				// --- FIXED ITEM IMAGE LOGIC ---
 				let imageUrl = null;
 				if (item.itemPhoto) {
-					// Use the new string-based endpoint
 					imageUrl = `${process.env.SPRING_BOOT_API_URL}/api/items/images/${item.itemPhoto}`;
 				} else if (item.itemPhotoId) {
-					// Fallback for older numeric IDs
 					imageUrl = `${process.env.SPRING_BOOT_API_URL}/uploads/items/${item.itemPhotoId}`;
 				}
-				// -------------------------
 
 				return {
 					id: item.itemId,
@@ -97,9 +107,6 @@ const ProfilePage = async () => {
 		console.error("Failed to fetch user items:", error);
 	}
 
-	// 5. MERGE: Real Items + Mock Items
-	// Note: You previously removed mock items, so just using userItems here.
-	// If you want mocks back, use: [...userItems, ...activeListings];
 	const displayListings = userItems;
 
 	// Split into Sale vs Rent/Swap
@@ -107,6 +114,11 @@ const ProfilePage = async () => {
 	const itemsForRent = displayListings.filter(
 		(i) => i.type === "Rent" || i.type === "Swap"
 	);
+
+	// --- PROFILE PICTURE URL ---
+	const profilePicUrl = user.profilePicture
+		? `${process.env.SPRING_BOOT_API_URL}/api/students/images/${user.profilePicture}`
+		: null;
 
 	// Reusable Card Component
 	const ListingCard = ({ item }: { item: (typeof userItems)[0] }) => (
@@ -132,7 +144,6 @@ const ProfilePage = async () => {
 			<div className="h-52 bg-gray-200 relative overflow-hidden">
 				<div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400 relative">
 					{item.image ? (
-						// Use standard img tag to ensure display
 						<Image
 							src={item.image}
 							alt={item.title}
@@ -185,13 +196,12 @@ const ProfilePage = async () => {
 					<aside className="lg:col-span-1 space-y-6">
 						{/* 1. Profile Card */}
 						<div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm flex flex-col items-center text-center">
-							<div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center text-gray-400 mb-4 overflow-hidden relative">
-								{user.profilePicture ? (
-									<Image
-										src={`${process.env.SPRING_BOOT_API_URL}/uploads/${user.profilePicture}`}
+							<div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center text-gray-400 mb-4 overflow-hidden relative border border-gray-100">
+								{profilePicUrl ? (
+									// eslint-disable-next-line @next/next/no-img-element
+									<img
+										src={profilePicUrl}
 										alt="Profile"
-										width={96}
-										height={96}
 										className="w-full h-full object-cover"
 									/>
 								) : (
@@ -202,7 +212,7 @@ const ProfilePage = async () => {
 										fill="currentColor"
 										className="bi bi-person"
 										viewBox="0 0 16 16">
-										<path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z" />
+										<path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664z" />
 									</svg>
 								)}
 							</div>

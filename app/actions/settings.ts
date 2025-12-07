@@ -1,6 +1,7 @@
 "use server";
 
 import { ChangePasswordSchema, FormState } from "@/lib/definitions";
+import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 
 export async function changePassword(
@@ -89,5 +90,79 @@ export async function changePassword(
 	} catch (error) {
 		console.error("Password change error:", error);
 		return { message: "An unexpected error occurred." };
+	}
+}
+
+export type SettingsFormState =
+	| {
+			success?: boolean;
+			message?: string;
+			errors?: { [key: string]: string[] };
+	  }
+	| undefined;
+
+export async function updateProfilePicture(
+	prevState: SettingsFormState,
+	formData: FormData
+): Promise<SettingsFormState> {
+	try {
+		const cookieStore = await cookies();
+		const sessionCookie = cookieStore.get("session");
+
+		if (!sessionCookie) return { success: false, message: "Unauthorized" };
+		const user = JSON.parse(sessionCookie.value);
+
+		const file = formData.get("profilePicture");
+		if (!file) return { success: false, message: "No file selected" };
+
+		const backendFormData = new FormData();
+		backendFormData.append("file", file);
+
+		const res = await fetch(
+			`${process.env.SPRING_BOOT_API_URL}/api/students/${user.studentId}/upload-picture`,
+			{
+				method: "POST",
+				body: backendFormData,
+			}
+		);
+
+		if (res.ok) {
+			revalidatePath("/profile/settings");
+			revalidatePath("/profile");
+			return { success: true, message: "Profile picture updated!" };
+		} else {
+			return { success: false, message: "Failed to upload image." };
+		}
+	} catch (error) {
+		console.error("Upload error:", error);
+		return { success: false, message: "An error occurred." };
+	}
+}
+
+export async function removeProfilePictureAction(): Promise<SettingsFormState> {
+	try {
+		const cookieStore = await cookies();
+		const sessionCookie = cookieStore.get("session");
+
+		if (!sessionCookie) return { success: false, message: "Unauthorized" };
+		const user = JSON.parse(sessionCookie.value);
+
+		const res = await fetch(
+			`${process.env.SPRING_BOOT_API_URL}/api/students/${user.studentId}/profile-picture`,
+			{
+				method: "DELETE",
+			}
+		);
+
+		if (res.ok) {
+			revalidatePath("/profile/settings");
+			revalidatePath("/profile");
+			return { success: true, message: "Profile picture removed." };
+		} else {
+			return { success: false, message: "Failed to remove picture." };
+		}
+	} catch (error) {
+		console.error("Remove error:", error);
+		return { success: false, message: "An error occurred." };
 	}
 }
