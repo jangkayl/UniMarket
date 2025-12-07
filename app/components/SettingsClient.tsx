@@ -22,7 +22,7 @@ interface User {
 }
 
 // Define API URL safely outside to prevent undefined hydration mismatches
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const API_BASE_URL = process.env.SPRING_BOOT_API_URL;
 
 const ToggleSwitch = ({
 	isOn,

@@ -6,6 +6,7 @@ interface MessagePayload {
 	messageContent: string;
 	messageType: string;
 	isRead: boolean;
+	itemId?: number | null;
 }
 
 export async function getConversationAction(userId1: number, userId2: number) {
@@ -22,35 +23,6 @@ export async function getConversationAction(userId1: number, userId2: number) {
 	} catch (error) {
 		console.error("Fetch conversation error:", error);
 		return [];
-	}
-}
-
-export async function sendMessageAction(payload: MessagePayload) {
-	try {
-		const dto = {
-			senderId: payload.senderId,
-			receiverId: payload.receiverId,
-			messageContent: payload.messageContent,
-			messageType: payload.messageType,
-			isRead: payload.isRead,
-		};
-
-		const res = await fetch(
-			`${process.env.SPRING_BOOT_API_URL}/api/messages/send`,
-			{
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(dto),
-			}
-		);
-
-		if (res.ok) {
-			return await res.json();
-		}
-		return null;
-	} catch (error) {
-		console.error("Send message error:", error);
-		return null;
 	}
 }
 
@@ -89,5 +61,35 @@ export async function deleteConversationAction(
 	} catch (error) {
 		console.error("Delete conversation error:", error);
 		return false;
+	}
+}
+
+export async function sendMessageAction(payload: MessagePayload) {
+	try {
+		const dto = {
+			senderId: payload.senderId,
+			receiverId: payload.receiverId,
+			messageContent: payload.messageContent,
+			messageType: payload.messageType,
+			isRead: payload.isRead,
+			itemId: payload.itemId,
+		};
+
+		const res = await fetch(
+			`${process.env.SPRING_BOOT_API_URL}/api/messages/send`,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(dto),
+			}
+		);
+
+		if (res.ok) {
+			return await res.json();
+		}
+		return null;
+	} catch (error) {
+		console.error("Send message error:", error);
+		return null;
 	}
 }

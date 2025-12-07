@@ -26,7 +26,7 @@ interface ItemDetails {
 	sellerId: number;
 	sellerFirstName?: string;
 	sellerLastName?: string;
-	sellerProfilePicture?: string | null; // Added field for seller avatar
+	sellerProfilePicture?: string | null;
 }
 
 const formatPrice = (amount: number | null | undefined) => {
@@ -122,8 +122,8 @@ const ItemDetailsPage = async ({
 			: `Student #${item.sellerId}`;
 
 	// FIX: Added &sellerPic param to pass the image filename
-	const chatUrl = `/messages?chatWith=${
-		item.sellerId
+	const chatUrl = `/messages?chatWith=${item.sellerId}&itemId=${
+		item.itemId
 	}&refItem=${encodeURIComponent(
 		item.itemName
 	)}&sellerName=${encodeURIComponent(
