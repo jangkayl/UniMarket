@@ -5,12 +5,13 @@ import { cookies } from "next/headers";
 import Navbar from "../../../components/Navbar";
 import Footer from "../../../components/Footer";
 
-// --- Type definition ---
+// --- Type definition matching your Spring Boot ItemDTO ---
 interface ItemDetails {
 	itemId: number;
 	itemName: string;
 	description: string;
 	price: number | null;
+	itemPhoto: string | null;
 	itemPhotoId: number | null;
 	category: string;
 	condition: string;
@@ -69,6 +70,7 @@ const ItemDetailsPage = async ({
 	const cookieStore = await cookies();
 	const sessionCookie = cookieStore.get("session");
 	let isOwner = false;
+
 	if (sessionCookie) {
 		try {
 			const user = JSON.parse(sessionCookie.value);
@@ -78,7 +80,10 @@ const ItemDetailsPage = async ({
 		} catch (e) {}
 	}
 
-	const imageUrl = item.itemPhotoId
+	// Determine Image URL
+	const imageUrl = item.itemPhoto
+		? `${process.env.SPRING_BOOT_API_URL}/api/items/images/${item.itemPhoto}`
+		: item.itemPhotoId
 		? `${process.env.SPRING_BOOT_API_URL}/uploads/items/${item.itemPhotoId}`
 		: null;
 
@@ -89,6 +94,13 @@ const ItemDetailsPage = async ({
 		item.sellerFirstName && item.sellerLastName
 			? `${item.sellerFirstName} ${item.sellerLastName}`
 			: `Student #${item.sellerId}`;
+
+	// FIX: Pass sellerName in the URL so the messages page knows who it is immediately
+	const chatUrl = `/messages?chatWith=${
+		item.sellerId
+	}&refItem=${encodeURIComponent(
+		item.itemName
+	)}&sellerName=${encodeURIComponent(sellerName)}`;
 
 	return (
 		<div className="bg-gray-50 min-h-screen flex flex-col font-sans text-gray-900">
@@ -120,12 +132,12 @@ const ItemDetailsPage = async ({
 					<div className="space-y-4">
 						<div className="w-full h-[500px] bg-white rounded-2xl border border-gray-200 overflow-hidden flex items-center justify-center relative shadow-sm">
 							{imageUrl ? (
-								<Image
+								// Use standard img tag
+								// eslint-disable-next-line @next/next/no-img-element
+								<img
 									src={imageUrl}
 									alt={item.itemName}
-									fill
-									className="object-cover"
-									priority
+									className="w-full h-full object-cover"
 								/>
 							) : (
 								<div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 flex-col gap-4">
@@ -255,25 +267,29 @@ const ItemDetailsPage = async ({
 									</div>
 									{!isOwner && (
 										<div className="flex gap-3 mt-2">
-											<button className="flex-1 bg-[#8B0000] text-white text-sm font-bold py-2 rounded-lg hover:bg-red-900 transition-colors flex items-center justify-center gap-2">
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													width="16"
-													height="16"
-													fill="currentColor"
-													className="bi bi-chat-dots-fill"
-													viewBox="0 0 16 16">
-													<path d="M16 8c0 3.866-3.582 7-8 7a9 9 0 0 1-2.347-.306c-.584.296-1.925.864-4.181 1.234-.2.032-.352-.176-.273-.362.354-.836.674-1.95.77-2.966C.744 11.37 0 9.76 0 8c0-3.866 3.582-7 8-7s8 3.134 8 7M5 8a1 1 0 1 0-2 0 1 1 0 0 0 2 0m4 0a1 1 0 1 0-2 0 1 1 0 0 0 2 0m3 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2" />
-												</svg>
-												Chat Seller
-											</button>
+											{/* Chat Seller Button */}
+											<Link
+												href={chatUrl}
+												className="flex-1">
+												<button className="w-full bg-[#8B0000] text-white text-sm font-bold py-2 rounded-lg hover:bg-red-900 transition-colors flex items-center justify-center gap-2 cursor-pointer">
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														width="16"
+														height="16"
+														fill="currentColor"
+														className="bi bi-chat-dots-fill"
+														viewBox="0 0 16 16">
+														<path d="M16 8c0 3.866-3.582 7-8 7a9 9 0 0 1-2.347-.306c-.584.296-1.925.864-4.181 1.234-.2.032-.352-.176-.273-.362.354-.836.674-1.95.77-2.966C.744 11.37 0 9.76 0 8c0-3.866 3.582-7 8-7s8 3.134 8 7M5 8a1 1 0 1 0-2 0 1 1 0 0 0 2 0m4 0a1 1 0 1 0-2 0 1 1 0 0 0 2 0m3 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2" />
+													</svg>
+													Chat Seller
+												</button>
+											</Link>
 										</div>
 									)}
 								</div>
 							</div>
 						</div>
 
-						{/* --- ACTION BUTTON LOGIC --- */}
 						{isOwner ? (
 							<Link href={`/profile/edit-item/${item.itemId}`}>
 								<button className="w-full bg-white border-2 border-gray-300 text-gray-700 text-lg font-bold py-4 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm cursor-pointer flex items-center justify-center gap-3">
@@ -294,18 +310,19 @@ const ItemDetailsPage = async ({
 								</button>
 							</Link>
 						) : (
-							<button className="w-full bg-yellow-400 text-gray-900 text-lg font-bold py-4 rounded-xl hover:bg-yellow-500 transition-transform transform hover:scale-[1.02] shadow-md cursor-pointer mt-auto">
-								{item.transactionType === "Rent"
-									? "Request to Borrow"
-									: item.transactionType === "Swap"
-									? "Offer a Swap"
-									: "Buy Now"}
-							</button>
+							<Link href={chatUrl}>
+								<button className="w-full bg-yellow-400 text-gray-900 text-lg font-bold py-4 rounded-xl hover:bg-yellow-500 transition-transform transform hover:scale-[1.02] shadow-md cursor-pointer mt-auto">
+									{item.transactionType === "Rent"
+										? "Request to Borrow"
+										: item.transactionType === "Swap"
+										? "Offer a Swap"
+										: "Buy Now"}
+								</button>
+							</Link>
 						)}
 					</div>
 				</div>
 			</main>
-
 			<Footer />
 		</div>
 	);

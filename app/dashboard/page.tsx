@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
@@ -9,11 +10,33 @@ interface User {
 	firstName: string;
 	lastName: string;
 	studentNumber: string;
-	// Add other fields if necessary
 }
 
-// --- Mock Data ---
+// Interface for raw data coming from Spring Boot API
+interface FetchedItem {
+	itemId: number;
+	itemName: string;
+	price: number | null;
+	category: string;
+	condition: string;
+	transactionType: string;
+	itemPhoto: string | null;
+	itemPhotoId: number | null;
+	sellerId: number;
+	rentalFee?: number | null;
+	rentalDurationDays?: number | null;
+}
 
+// Interface for the transformed listing data used in the UI
+interface FeaturedListingItem {
+	id: number;
+	title: string;
+	price: string;
+	condition: string;
+	image: string | null;
+}
+
+// --- Mock Data for Stats & Notifications (Kept static as requested) ---
 const quickStats = [
 	{ label: "Active Listings", value: "7", icon: "box" },
 	{ label: "Loan Requests", value: "3", icon: "piggy" },
@@ -40,67 +63,9 @@ const recentNotifications = [
 		time: "3 hours ago",
 		type: "alert",
 	},
-	{
-		id: 4,
-		text: "Reminder: Repayment due for 'Chemistry Kit' in 2 days",
-		time: "Yesterday",
-		type: "reminder",
-	},
-	{
-		id: 5,
-		text: "You received a new rating from Jamie P.",
-		time: "2 days ago",
-		type: "rating",
-	},
-];
-
-const featuredListings = [
-	{
-		id: 1,
-		title: "Dune by Frank Herbert",
-		price: "$15.00",
-		condition: "Used - Good",
-		image: "/images/book_dune.jpg",
-	},
-	{
-		id: 2,
-		title: "Ergonomic Desk Chair",
-		price: "$75.00",
-		condition: "Used - Excellent",
-		image: "/images/chair.jpg",
-	},
-	{
-		id: 3,
-		title: "TI-84 Plus Calculator",
-		price: "$40.00",
-		condition: "Used - Fair",
-		image: "/images/calculator.jpg",
-	},
-	{
-		id: 4,
-		title: "Portable Bluetooth Speaker",
-		price: "$25.00",
-		condition: "Used - Very Good",
-		image: "/images/laptop_mock.jpg",
-	},
-	{
-		id: 5,
-		title: "Art History: A Concise Survey",
-		price: "$20.00",
-		condition: "Used - Good",
-		image: "/images/art_book.jpg",
-	},
-	{
-		id: 6,
-		title: "Artist Pen Set",
-		price: "$10.00",
-		condition: "New",
-		image: "/images/pens.jpg",
-	},
 ];
 
 // --- Helper Components ---
-
 const NotificationIcon = ({ type }: { type: string }) => {
 	switch (type) {
 		case "message":
@@ -125,30 +90,6 @@ const NotificationIcon = ({ type }: { type: string }) => {
 					className="bi bi-hand-thumbs-up-fill"
 					viewBox="0 0 16 16">
 					<path d="M6.956 1.745C7.021.81 7.908.087 8.864.325l.261.066c.463.116.874.456 1.012.965.22.816.533 2.511.062 4.51a9.847 9.847 0 0 1 .443-.051c.713-.065 1.669-.072 2.516.21.518.173.994.681 1.2 1.273.184.532.16 1.162-.234 1.733.058.119.103.242.138.363.077.27.113.567.113.856 0 .289-.036.586-.113.856-.039.135-.09.273-.16.404.169.387.107.819-.003 1.148a3.163 3.163 0 0 1-.488.901c.054.152.076.312.076.465 0 .305-.089.625-.253.912C13.1 15.522 12.437 16 11.5 16H8c-.605 0-1.07-.081-1.466-.218a4.82 4.82 0 0 1-.97-.484l-.048-.03c-.504-.307-.999-.609-2.068-.722C2.682 14.464 2 13.846 2 13V9c0-.85.685-1.432 1.357-1.615.849-.232 1.574-.787 2.132-1.41.56-.627.914-1.28 1.039-1.639.199-.575.356-1.539.428-2.59z" />
-				</svg>
-			);
-		case "alert":
-			return (
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					width="16"
-					height="16"
-					fill="gold"
-					className="bi bi-megaphone-fill"
-					viewBox="0 0 16 16">
-					<path d="M13 2.5a1.5 1.5 0 0 1 3 0v11a1.5 1.5 0 0 1-3 0v-11zm-1 .5v11a.5.5 0 0 1-1 0v-11a.5.5 0 0 1 1 0zM4.722 2.016A5 5 0 0 0 2 8zm0 11.968A5 5 0 0 0 2 8zm.278-6a4 4 0 0 1 4-4v8a4 4 0 0 1-4-4z" />
-				</svg>
-			);
-		case "reminder":
-			return (
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					width="16"
-					height="16"
-					fill="gold"
-					className="bi bi-piggy-bank-fill"
-					viewBox="0 0 16 16">
-					<path d="M7.964 1.527c-2.977 0-5.571 1.704-6.32 4.125h-.55A1 1 0 0 0 .11 6.824l.254 1.46a1.5 1.5 0 0 0 1.478 1.243h.263c.3.513.688.978 1.145 1.382l-.729 2.477a.5.5 0 0 0 .48.641h2a.5.5 0 0 0 .471-.332l.482-1.351c.635.173 1.31.267 2.011.267.707 0 1.388-.095 2.028-.272l.543 1.372a.5.5 0 0 0 .463.316h2a.5.5 0 0 0 .478-.645l-.761-2.506C13.81 9.895 14.5 8.559 14.5 7.069c0-.145-.007-.29-.02-.431.261-.11.508-.266.705-.444.315.306.815.306.815-.417 0 .223-.5.223-.461-.026a.95.95 0 0 0 .09-.092.314.314 0 0 0 .092-.09c.232-.423-.028-.815-.417-.815-.178-.197-.334-.444-.444-.705.141-.013.286-.02.431-.02 1.49 0 2.826.69 3.826 1.838l2.506.761a.5.5 0 0 0 .645-.478v-2a.5.5 0 0 0-.332-.471l-1.351-.482c-.173-.635-.267-1.31-.267-2.011 0-.707.095-1.388.272-2.028l1.372-.543a.5.5 0 0 0 .316-.463v-2a.5.5 0 0 0-.645-.478l-2.477.729c-.404-.457-.87-.845-1.382-1.145V1.711a1.5 1.5 0 0 0-1.243-1.478l-1.46-.254a1 1 0 0 0-1.173.984v.55c-2.42.75-4.125 3.343-4.125 6.32z" />
 				</svg>
 			);
 		default:
@@ -230,6 +171,44 @@ const DashboardPage = async () => {
 	// 3. Parse User Data
 	const user: User = JSON.parse(sessionCookie.value);
 
+	// 4. Fetch Featured Listings from Backend
+	let featuredListings: FeaturedListingItem[] = [];
+	try {
+		const res = await fetch(
+			`${process.env.SPRING_BOOT_API_URL}/api/items/getAllItems`,
+			{
+				cache: "no-store",
+			}
+		);
+
+		if (res.ok) {
+			const data: FetchedItem[] = await res.json();
+			// Take the first 5 items
+			featuredListings = data.slice(0, 5).map((item) => {
+				const isRental = item.transactionType === "Rent";
+				const rawPrice = isRental ? item.rentalFee : item.price;
+
+				// Construct Image URL
+				let imageUrl = null;
+				if (item.itemPhoto) {
+					imageUrl = `${process.env.SPRING_BOOT_API_URL}/api/items/images/${item.itemPhoto}`;
+				} else if (item.itemPhotoId) {
+					imageUrl = `${process.env.SPRING_BOOT_API_URL}/uploads/items/${item.itemPhotoId}`;
+				}
+
+				return {
+					id: item.itemId,
+					title: item.itemName,
+					price: `₱${(rawPrice ?? 0).toFixed(2)}`,
+					condition: item.condition,
+					image: imageUrl,
+				};
+			});
+		}
+	} catch (e) {
+		console.error("Failed to fetch featured listings", e);
+	}
+
 	return (
 		<div className="bg-gray-50 min-h-screen flex flex-col font-sans text-gray-900">
 			<Navbar />
@@ -250,7 +229,6 @@ const DashboardPage = async () => {
 					</div>
 
 					<div className="relative z-10 max-w-2xl">
-						{/* DYNAMIC WELCOME MESSAGE */}
 						<h1 className="text-4xl font-bold mb-4 text-gray-900">
 							Welcome back, {user.firstName}!
 						</h1>
@@ -268,7 +246,9 @@ const DashboardPage = async () => {
 
 				{/* --- 2. QUICK ACTIONS CARDS --- */}
 				<section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-					<div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center hover:shadow-md transition-shadow cursor-pointer group">
+					<Link
+						href="/marketplace"
+						className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center hover:shadow-md transition-shadow cursor-pointer group">
 						<div className="text-yellow-400 mb-4 group-hover:scale-110 transition-transform">
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
@@ -285,12 +265,12 @@ const DashboardPage = async () => {
 						<p className="text-gray-500 text-sm mb-4">
 							Browse or list academic essentials and more.
 						</p>
-						<p className="text-red-900 font-bold text-2xl mt-auto">
-							1,245 items
-						</p>
-					</div>
+						<p className="text-red-900 font-bold text-2xl mt-auto">Browse</p>
+					</Link>
 
-					<div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center hover:shadow-md transition-shadow cursor-pointer group">
+					<Link
+						href="/loans"
+						className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center hover:shadow-md transition-shadow cursor-pointer group">
 						<div className="text-yellow-400 mb-4 group-hover:scale-110 transition-transform">
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
@@ -308,9 +288,11 @@ const DashboardPage = async () => {
 							Manage items you&apos;ve requested to borrow.
 						</p>
 						<p className="text-red-900 font-bold text-2xl mt-auto">5 pending</p>
-					</div>
+					</Link>
 
-					<div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center hover:shadow-md transition-shadow cursor-pointer group">
+					<Link
+						href="/marketplace?filter=Rent"
+						className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center hover:shadow-md transition-shadow cursor-pointer group">
 						<div className="text-yellow-400 mb-4 group-hover:scale-110 transition-transform">
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
@@ -326,8 +308,8 @@ const DashboardPage = async () => {
 						<p className="text-gray-500 text-sm mb-4">
 							View and offer items for peer-to-peer loans.
 						</p>
-						<p className="text-red-900 font-bold text-2xl mt-auto">8 active</p>
-					</div>
+						<p className="text-red-900 font-bold text-2xl mt-auto">Browse</p>
+					</Link>
 				</section>
 
 				{/* --- 3. NOTIFICATIONS & STATS GRID --- */}
@@ -378,7 +360,7 @@ const DashboardPage = async () => {
 					</div>
 				</section>
 
-				{/* --- 4. FEATURED LISTINGS --- */}
+				{/* --- 4. FEATURED LISTINGS (DYNAMIC) --- */}
 				<section>
 					<div className="flex justify-between items-end mb-6">
 						<h2 className="text-2xl font-bold text-gray-900">
@@ -403,34 +385,54 @@ const DashboardPage = async () => {
 						</Link>
 					</div>
 
-					<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-6">
-						{featuredListings.map((item) => (
-							<div
-								key={item.id}
-								className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow group">
-								<div className="h-40 bg-gray-200 relative overflow-hidden">
-									<div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											width="40"
-											height="40"
-											fill="currentColor"
-											className="bi bi-image"
-											viewBox="0 0 16 16">
-											<path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0" />
-											<path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12" />
-										</svg>
+					<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+						{featuredListings.length > 0 ? (
+							featuredListings.map((item) => (
+								<Link
+									key={item.id}
+									href={`/marketplace/item/${item.id}`}
+									className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow group block">
+									<div className="h-40 bg-gray-200 relative overflow-hidden">
+										<div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100 relative">
+											{item.image ? (
+												<Image
+													src={item.image}
+													alt={item.title}
+													fill
+													className="object-cover"
+												/>
+											) : (
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													width="40"
+													height="40"
+													fill="currentColor"
+													className="bi bi-image"
+													viewBox="0 0 16 16">
+													<path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0" />
+													<path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12" />
+												</svg>
+											)}
+										</div>
 									</div>
-								</div>
-								<div className="p-4">
-									<h4 className="font-bold text-gray-900 text-sm mb-1 truncate">
-										{item.title}
-									</h4>
-									<p className="text-red-900 font-bold text-lg">{item.price}</p>
-									<p className="text-xs text-gray-500 mt-1">{item.condition}</p>
-								</div>
+									<div className="p-4">
+										<h4 className="font-bold text-gray-900 text-sm mb-1 truncate">
+											{item.title}
+										</h4>
+										<p className="text-red-900 font-bold text-lg">
+											{item.price}
+										</p>
+										<p className="text-xs text-gray-500 mt-1">
+											{item.condition}
+										</p>
+									</div>
+								</Link>
+							))
+						) : (
+							<div className="col-span-full py-8 text-center text-gray-500">
+								<p>No featured listings available.</p>
 							</div>
-						))}
+						)}
 					</div>
 				</section>
 			</main>

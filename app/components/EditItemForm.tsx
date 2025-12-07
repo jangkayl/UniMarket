@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useActionState, useEffect } from "react";
+import { useState, useActionState, useEffect, ChangeEvent } from "react";
 import Image from "next/image";
 import { updateItem, deleteItemAction } from "@/app/actions/marketplace";
 import { useRouter } from "next/navigation";
 
-// Constants (Shared with MarketplaceClient)
 const categories = [
 	"Textbooks",
 	"Electronics",
@@ -27,48 +26,49 @@ interface EditItemFormProps {
 		rentalFee: number | null;
 		rentalDurationDays: number | null;
 		itemPhotoId: number | null;
+		itemPhoto: string | null;
 	} | null;
 	imageUrl: string | null;
 }
 
-const EditItemForm = ({ item, imageUrl }: EditItemFormProps) => {
+const EditItemForm = ({
+	item,
+	imageUrl: initialImageUrl,
+}: EditItemFormProps) => {
 	const router = useRouter();
 
 	const [transactionType, setTransactionType] = useState(
 		item?.transactionType || "Sell"
 	);
+	const [previewUrl, setPreviewUrl] = useState<string | null>(initialImageUrl);
 
 	const [state, formAction, isPending] = useActionState(updateItem, undefined);
 
 	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 
-	// Redirect on Update Success
 	useEffect(() => {
 		if (state?.success) {
 			router.push("/profile");
 		}
 	}, [state?.success, router]);
 
-	// 2. Guard Clause: NOW it is safe to return early
 	if (!item) {
 		return (
 			<div className="flex flex-col items-center justify-center p-12 text-gray-500 bg-white rounded-2xl border border-gray-200 shadow-sm">
-				<p className="mb-4">Item data is missing or could not be loaded.</p>
+				<p className="mb-4">Item data is missing.</p>
 				<button
 					onClick={() => window.location.reload()}
-					className="text-red-900 font-semibold hover:underline">
-					Reload Page
+					className="text-red-900 hover:underline">
+					Reload
 				</button>
 			</div>
 		);
 	}
 
-	// Handle Delete
 	const handleDelete = async () => {
 		setIsDeleting(true);
 		const res = await deleteItemAction(item.itemId);
-
 		if (res?.success) {
 			router.refresh();
 			router.push("/profile");
@@ -76,6 +76,14 @@ const EditItemForm = ({ item, imageUrl }: EditItemFormProps) => {
 			alert(res?.message || "Failed to delete item");
 			setIsDeleting(false);
 			setIsDeleteModalOpen(false);
+		}
+	};
+
+	const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (file) {
+			const url = URL.createObjectURL(file);
+			setPreviewUrl(url);
 		}
 	};
 
@@ -89,46 +97,58 @@ const EditItemForm = ({ item, imageUrl }: EditItemFormProps) => {
 					name="itemId"
 					value={item.itemId}
 				/>
+				{/* Pass existing photo data so backend knows what to keep if no new file is uploaded */}
 				<input
 					type="hidden"
-					name="currentPhotoId"
-					value={item.itemPhotoId || ""}
+					name="currentItemPhoto"
+					value={item.itemPhoto || ""}
 				/>
 
-				{/* --- LEFT: IMAGE PREVIEW --- */}
+				{/* --- LEFT: IMAGE EDITING --- */}
 				<div className="space-y-4">
-					<div className="w-full h-[400px] bg-white rounded-2xl border border-gray-200 overflow-hidden flex items-center justify-center relative shadow-sm">
-						{imageUrl ? (
+					<label
+						htmlFor="itemPhoto"
+						className="w-full h-[400px] bg-white rounded-2xl border-2 border-dashed border-gray-300 hover:border-red-900 hover:bg-gray-50 overflow-hidden flex items-center justify-center relative cursor-pointer transition-all group shadow-sm">
+						{previewUrl ? (
+							// Use standard img for blob previews to avoid Next.js hostname issues with blob:
 							<Image
-								src={imageUrl}
+								src={previewUrl}
 								alt="Preview"
-								fill
-								className="object-cover"
+								width={100}
+								height={100}
+								className="w-full h-full object-cover"
 							/>
 						) : (
-							<div className="text-gray-400 flex flex-col items-center">
+							<div className="text-gray-400 flex flex-col items-center group-hover:text-red-900">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									width="64"
 									height="64"
 									fill="currentColor"
-									className="bi bi-image"
+									className="bi bi-cloud-arrow-up"
 									viewBox="0 0 16 16">
-									<path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0" />
-									<path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12" />
+									<path
+										fillRule="evenodd"
+										d="M7.646 5.146a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 6.707V10.5a.5.5 0 0 1-1 0V6.707L6.354 7.854a.5.5 0 1 1-.708-.708z"
+									/>
+									<path d="M4.406 3.342A5.53 5.53 0 0 1 8 2c2.69 0 4.923 2 5.166 4.579C14.758 6.804 16 8.137 16 9.773 16 11.569 14.502 13 12.687 13H3.781C1.708 13 0 11.366 0 9.318c0-1.763 1.266-3.223 2.942-3.593.143-.863.698-1.723 1.464-2.383m.653.757c-.757.653-1.153 1.44-1.153 2.056v.448l-.445.049C2.064 6.805 1 7.952 1 9.318 1 10.785 2.23 12 3.781 12h8.906C13.98 12 15 10.988 15 9.773c0-1.216-1.02-2.228-2.313-2.228h-.5v-.5C12.188 4.825 10.328 3 8 3a4.53 4.53 0 0 0-2.941 1.1z" />
 								</svg>
-								<span className="text-sm mt-2">
-									Photo Editing Not Available Yet
+								<span className="text-sm mt-2 font-semibold">
+									Click to Change Image
 								</span>
 							</div>
 						)}
-					</div>
+						<input
+							type="file"
+							name="itemPhoto"
+							id="itemPhoto"
+							accept="image/*"
+							className="hidden"
+							onChange={handleFileChange}
+						/>
+					</label>
 
-					{/* Delete Button Area */}
 					<div className="pt-4 border-t border-gray-100">
-						<p className="text-sm text-gray-500 mb-3 text-center">
-							Need to remove this listing?
-						</p>
 						<button
 							type="button"
 							onClick={() => setIsDeleteModalOpen(true)}
@@ -321,31 +341,27 @@ const EditItemForm = ({ item, imageUrl }: EditItemFormProps) => {
 				</div>
 			</form>
 
-			{/* --- CONFIRMATION MODAL --- */}
+			{/* Confirmation Modal (Same as before) */}
 			{isDeleteModalOpen && (
 				<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-					<div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full animate-fade-in-up">
+					<div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full">
 						<h3 className="text-xl font-bold text-gray-900 mb-2">
 							Delete Item?
 						</h3>
 						<p className="text-gray-500 mb-6">
-							Are you sure you want to delete{" "}
-							<span className="font-bold text-gray-800">
-								&quot;{item.itemName}&quot;
-							</span>
-							? This action cannot be undone.
+							Are you sure you want to delete this item?
 						</p>
 						<div className="flex gap-3 justify-end">
 							<button
 								onClick={() => setIsDeleteModalOpen(false)}
-								className="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors">
+								className="px-5 py-2.5 border rounded-lg">
 								Cancel
 							</button>
 							<button
 								onClick={handleDelete}
 								disabled={isDeleting}
-								className="px-5 py-2.5 rounded-lg bg-red-900 text-white font-semibold hover:bg-red-800 transition-colors disabled:bg-red-400 flex items-center gap-2">
-								{isDeleting ? "Deleting..." : "Yes, Delete"}
+								className="px-5 py-2.5 bg-red-900 text-white rounded-lg hover:bg-red-800">
+								{isDeleting ? "Deleting..." : "Delete"}
 							</button>
 						</div>
 					</div>

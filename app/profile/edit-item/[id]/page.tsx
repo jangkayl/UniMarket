@@ -5,6 +5,22 @@ import Navbar from "../../../components/Navbar";
 import Footer from "../../../components/Footer";
 import EditItemForm from "../../../components/EditItemForm";
 
+// Match DTO structure
+interface EditItemData {
+	itemId: number;
+	itemName: string;
+	description: string;
+	price: number | null;
+	category: string;
+	condition: string;
+	transactionType: string;
+	rentalFee: number | null;
+	rentalDurationDays: number | null;
+	itemPhoto: string | null; // New String field
+	itemPhotoId: number | null; // Old ID field
+	sellerId: number;
+}
+
 const EditItemPage = async ({
 	params,
 }: {
@@ -12,15 +28,13 @@ const EditItemPage = async ({
 }) => {
 	const { id } = await params;
 
-	// 1. Verify User Session
 	const cookieStore = await cookies();
 	const sessionCookie = cookieStore.get("session");
 	if (!sessionCookie) redirect("/login");
 
 	const user = JSON.parse(sessionCookie.value);
 
-	// 2. Fetch Item Data
-	let item = null;
+	let item: EditItemData | null = null;
 	try {
 		const res = await fetch(
 			`${process.env.SPRING_BOOT_API_URL}/api/items/getItemById/${id}`,
@@ -37,9 +51,6 @@ const EditItemPage = async ({
 
 	if (!item) return notFound();
 
-	// 3. Security Check: Is this user the seller?
-	// Note: item.sellerId might be a number, user.studentId might be number/string.
-	// Use strict equality after conversion if needed, but usually loose checks or explicit Number() safest.
 	if (Number(item.sellerId) !== Number(user.studentId)) {
 		return (
 			<div className="min-h-screen flex flex-col bg-white">
@@ -60,10 +71,13 @@ const EditItemPage = async ({
 		);
 	}
 
-	// 4. Prepare Image URL
-	const imageUrl = item.itemPhotoId
-		? `${process.env.SPRING_BOOT_API_URL}/uploads/items/${item.itemPhotoId}`
-		: null;
+	// Logic to determine the correct Image URL
+	let imageUrl = null;
+	if (item.itemPhoto) {
+		imageUrl = `${process.env.SPRING_BOOT_API_URL}/api/items/images/${item.itemPhoto}`;
+	} else if (item.itemPhotoId) {
+		imageUrl = `${process.env.SPRING_BOOT_API_URL}/uploads/items/${item.itemPhotoId}`;
+	}
 
 	return (
 		<div className="bg-gray-50 min-h-screen flex flex-col font-sans text-gray-900">

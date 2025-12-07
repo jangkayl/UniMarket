@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useActionState } from "react";
+import { useState, useEffect, useActionState, ChangeEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -24,6 +24,7 @@ export interface ListingItem {
 	condition: string;
 	price: string;
 	seller: string;
+	sellerId?: number;
 	image: string | null;
 }
 
@@ -36,25 +37,83 @@ const MarketplaceClient = ({
 	myListings,
 	otherListings,
 }: MarketplaceClientProps) => {
+	// --- FILTER STATES ---
 	const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+	const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
+	const [minPrice, setMinPrice] = useState<string>("");
+	const [maxPrice, setMaxPrice] = useState<string>("");
+
+	// --- ACTIVE FILTERS (Applied only when button is clicked) ---
+	const [activeFilters, setActiveFilters] = useState({
+		categories: [] as string[],
+		conditions: [] as string[],
+		minPrice: -Infinity,
+		maxPrice: Infinity,
+	});
+
+	// --- MODAL & FORM STATES ---
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [showToast, setShowToast] = useState(false);
 	const [formTransactionType, setFormTransactionType] = useState("Sell");
-
+	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	const [state, formAction, isPending] = useActionState(createItem, undefined);
 
 	const router = useRouter();
 	const searchParams = useSearchParams();
 
-	// Filter Logic (Applies to "Browse Marketplace" section)
-	const filteredListings =
-		selectedCategories.length > 0
-			? otherListings.filter((item) =>
-					selectedCategories.includes(item.category)
-			  )
-			: otherListings;
+	// --- FILTER LOGIC ---
+	const filteredListings = otherListings.filter((item) => {
+		// 1. Category Match
+		const catMatch =
+			activeFilters.categories.length === 0 ||
+			activeFilters.categories.includes(item.category);
 
-	// Effect: Open Modal from URL
+		// 2. Condition Match
+		const condMatch =
+			activeFilters.conditions.length === 0 ||
+			activeFilters.conditions.includes(item.condition);
+
+		// 3. Price Match
+		// Extract numeric value from string (e.g., "₱2,500.00" -> 2500.00)
+		// Removes non-numeric chars except dot
+		const priceString = item.price.split("/")[0]; // Handle "500/month" cases
+		const priceVal = parseFloat(priceString.replace(/[^0-9.]/g, ""));
+
+		const priceMatch =
+			(isNaN(priceVal) ? true : priceVal >= activeFilters.minPrice) &&
+			(isNaN(priceVal) ? true : priceVal <= activeFilters.maxPrice);
+
+		return catMatch && condMatch && priceMatch;
+	});
+
+	// Handler to Apply Filters
+	const handleApplyFilters = () => {
+		setActiveFilters({
+			categories: selectedCategories,
+			conditions: selectedConditions,
+			minPrice: minPrice ? parseFloat(minPrice) : -Infinity,
+			maxPrice: maxPrice ? parseFloat(maxPrice) : Infinity,
+		});
+	};
+
+	// Toggle Handlers
+	const toggleCategory = (cat: string) => {
+		if (selectedCategories.includes(cat)) {
+			setSelectedCategories(selectedCategories.filter((c) => c !== cat));
+		} else {
+			setSelectedCategories([...selectedCategories, cat]);
+		}
+	};
+
+	const toggleCondition = (cond: string) => {
+		if (selectedConditions.includes(cond)) {
+			setSelectedConditions(selectedConditions.filter((c) => c !== cond));
+		} else {
+			setSelectedConditions([...selectedConditions, cond]);
+		}
+	};
+
+	// --- EFFECTS & MODAL HANDLERS (Unchanged) ---
 	useEffect(() => {
 		if (searchParams.get("create") === "true") {
 			const timer = setTimeout(() => {
@@ -64,19 +123,17 @@ const MarketplaceClient = ({
 		}
 	}, [searchParams]);
 
-	// Effect: Close Modal & Show Toast on Success
 	useEffect(() => {
 		if (state?.success) {
 			const t1 = setTimeout(() => {
 				setIsModalOpen(false);
+				setPreviewUrl(null);
 				router.replace("/marketplace", { scroll: false });
 				setShowToast(true);
 			}, 0);
-
 			const t2 = setTimeout(() => {
 				setShowToast(false);
 			}, 3000);
-
 			return () => {
 				clearTimeout(t1);
 				clearTimeout(t2);
@@ -84,20 +141,21 @@ const MarketplaceClient = ({
 		}
 	}, [state?.success, router]);
 
-	const toggleCategory = (cat: string) => {
-		if (selectedCategories.includes(cat)) {
-			setSelectedCategories(selectedCategories.filter((c) => c !== cat));
-		} else {
-			setSelectedCategories([...selectedCategories, cat]);
-		}
-	};
-
 	const closeModal = () => {
 		setIsModalOpen(false);
+		setPreviewUrl(null);
 		router.replace("/marketplace", { scroll: false });
 	};
 
-	// Reusable Card Component
+	const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (file) {
+			const url = URL.createObjectURL(file);
+			setPreviewUrl(url);
+		}
+	};
+
+	// Reusable Item Card (Unchanged)
 	const ItemCard = ({
 		item,
 		isOwner = false,
@@ -111,9 +169,8 @@ const MarketplaceClient = ({
 				isOwner
 					? `/profile/edit-item/${item.id}`
 					: `/marketplace/item/${item.id}`
-			} // Owner goes to edit, others go to details
+			}
 			className="bg-white border border-gray-200 rounded-2xl overflow-hidden hover:shadow-lg transition-all duration-300 group cursor-pointer flex flex-col relative">
-			{/* Edit Icon Overlay for Owners */}
 			{isOwner && (
 				<div className="absolute top-3 right-3 z-10 bg-white/90 p-2 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity text-gray-700">
 					<svg
@@ -131,7 +188,6 @@ const MarketplaceClient = ({
 					</svg>
 				</div>
 			)}
-
 			<div className="h-52 bg-gray-200 relative overflow-hidden">
 				<div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400 relative">
 					{item.image ? (
@@ -184,7 +240,7 @@ const MarketplaceClient = ({
 
 	return (
 		<>
-			{/* Toast & Modal (Unchanged) */}
+			{/* Toast Notification */}
 			{showToast && (
 				<div className="fixed top-24 right-10 z-70 bg-green-500 text-white px-6 py-4 rounded-xl shadow-lg flex items-center gap-3 animate-fade-in-down">
 					<svg
@@ -205,9 +261,9 @@ const MarketplaceClient = ({
 				</div>
 			)}
 
+			{/* Create Item Modal (Same as before, using formAction) */}
 			{isModalOpen && (
 				<div className="fixed inset-0 z-60 flex items-center justify-center p-4">
-					{/* ... (Modal content identical to previous version, omitted for brevity) ... */}
 					<div
 						className="absolute inset-0 bg-black/50 backdrop-blur-sm"
 						onClick={closeModal}></div>
@@ -232,21 +288,66 @@ const MarketplaceClient = ({
 							<form
 								className="space-y-6"
 								action={formAction}>
-								{/* ... Form Inputs ... */}
-								{/* Copying input fields from previous version for consistency */}
+								{/* (Form Fields same as previous version, keeping it concise here) */}
 								<div>
 									<label className="block font-bold text-sm mb-2">
-										Item Name
+										Item Image
 									</label>
-									<input
-										required
-										name="itemName"
-										type="text"
-										className="w-full p-3 border border-gray-300 rounded-lg"
-										placeholder="Calculus Textbook"
-									/>
+									<label
+										htmlFor="itemPhoto"
+										className="border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 transition-colors h-48 relative overflow-hidden">
+										{previewUrl ? (
+											<Image
+												src={previewUrl}
+												alt="Preview"
+												fill
+												className="object-contain"
+											/>
+										) : (
+											<>
+												<div className="text-gray-400 mb-2">
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														width="32"
+														height="32"
+														fill="currentColor"
+														className="bi bi-cloud-arrow-up"
+														viewBox="0 0 16 16">
+														<path
+															fillRule="evenodd"
+															d="M7.646 5.146a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 6.707V10.5a.5.5 0 0 1-1 0V6.707L6.354 7.854a.5.5 0 1 1-.708-.708z"
+														/>
+														<path d="M4.406 3.342A5.53 5.53 0 0 1 8 2c2.69 0 4.923 2 5.166 4.579C14.758 6.804 16 8.137 16 9.773 16 11.569 14.502 13 12.687 13H3.781C1.708 13 0 11.366 0 9.318c0-1.763 1.266-3.223 2.942-3.593.143-.863.698-1.723 1.464-2.383m.653.757c-.757.653-1.153 1.44-1.153 2.056v.448l-.445.049C2.064 6.805 1 7.952 1 9.318 1 10.785 2.23 12 3.781 12h8.906C13.98 12 15 10.988 15 9.773c0-1.216-1.02-2.228-2.313-2.228h-.5v-.5C12.188 4.825 10.328 3 8 3a4.53 4.53 0 0 0-2.941 1.1z" />
+													</svg>
+												</div>
+												<p className="text-gray-500 text-sm">
+													Click to upload a photo
+												</p>
+											</>
+										)}
+										<input
+											type="file"
+											name="itemPhoto"
+											id="itemPhoto"
+											accept="image/*"
+											className="hidden"
+											onChange={handleFileChange}
+										/>
+									</label>
 								</div>
-								<div className="grid grid-cols-2 gap-4">
+								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+									<div>
+										<label className="block font-bold text-sm mb-2">
+											Item Name
+										</label>
+										<input
+											required
+											name="itemName"
+											type="text"
+											className="w-full p-3 border border-gray-300 rounded-lg"
+											placeholder="Calculus Textbook"
+										/>
+									</div>
 									<div>
 										<label className="block font-bold text-sm mb-2">
 											Category
@@ -263,6 +364,17 @@ const MarketplaceClient = ({
 											))}
 										</select>
 									</div>
+								</div>
+								<div>
+									<label className="block font-bold text-sm mb-2">
+										Description
+									</label>
+									<textarea
+										name="description"
+										rows={3}
+										className="w-full p-3 border border-gray-300 rounded-lg resize-y"></textarea>
+								</div>
+								<div className="grid grid-cols-2 gap-4">
 									<div>
 										<label className="block font-bold text-sm mb-2">
 											Transaction
@@ -277,8 +389,6 @@ const MarketplaceClient = ({
 											<option value="Swap">Swap</option>
 										</select>
 									</div>
-								</div>
-								<div className="grid grid-cols-2 gap-4">
 									<div>
 										<label className="block font-bold text-sm mb-2">
 											Condition
@@ -295,6 +405,8 @@ const MarketplaceClient = ({
 											))}
 										</select>
 									</div>
+								</div>
+								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 									{formTransactionType === "Sell" && (
 										<div>
 											<label className="block font-bold text-sm mb-2">
@@ -310,43 +422,46 @@ const MarketplaceClient = ({
 										</div>
 									)}
 									{formTransactionType === "Rent" && (
-										<div>
+										<>
+											<div>
+												<label className="block font-bold text-sm mb-2">
+													Rental Fee (PHP)
+												</label>
+												<input
+													required
+													name="rentalFee"
+													type="number"
+													step="0.01"
+													className="w-full p-3 border border-gray-300 rounded-lg"
+												/>
+											</div>
+											<div>
+												<label className="block font-bold text-sm mb-2">
+													Duration (Days)
+												</label>
+												<input
+													required
+													name="rentalDurationDays"
+													type="number"
+													className="w-full p-3 border border-gray-300 rounded-lg"
+												/>
+											</div>
+										</>
+									)}
+									{formTransactionType === "Swap" && (
+										<div className="col-span-2">
 											<label className="block font-bold text-sm mb-2">
-												Rental Fee (PHP)
+												Est. Value (PHP)
 											</label>
 											<input
-												required
-												name="rentalFee"
+												name="price"
 												type="number"
-												step="0.01"
 												className="w-full p-3 border border-gray-300 rounded-lg"
+												placeholder="Optional"
 											/>
 										</div>
 									)}
 								</div>
-								{formTransactionType === "Rent" && (
-									<div>
-										<label className="block font-bold text-sm mb-2">
-											Duration (Days)
-										</label>
-										<input
-											required
-											name="rentalDurationDays"
-											type="number"
-											className="w-full p-3 border border-gray-300 rounded-lg"
-										/>
-									</div>
-								)}
-								<div>
-									<label className="block font-bold text-sm mb-2">
-										Description
-									</label>
-									<textarea
-										name="description"
-										rows={3}
-										className="w-full p-3 border border-gray-300 rounded-lg resize-y"></textarea>
-								</div>
-
 								<div className="pt-4 flex justify-end gap-3">
 									<button
 										type="button"
@@ -372,12 +487,13 @@ const MarketplaceClient = ({
 				</div>
 			)}
 
-			{/* --- CONTENT START --- */}
 			<div className="grow w-full max-w-[1500px] mx-auto px-6 py-8 flex flex-col lg:flex-row gap-8">
-				{/* FILTERS SIDEBAR */}
+				{/* --- LEFT SIDEBAR: FILTERS --- */}
 				<aside className="w-full lg:w-64 shrink-0 lg:sticky lg:top-32 lg:h-[calc(100vh-10rem)] overflow-y-auto scrollbar-hide self-start">
 					<div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
 						<h2 className="text-xl font-bold mb-6">Filters</h2>
+
+						{/* Categories */}
 						<div className="mb-6">
 							<h3 className="font-semibold text-gray-800 mb-3">Categories</h3>
 							<div className="space-y-2">
@@ -396,13 +512,58 @@ const MarketplaceClient = ({
 								))}
 							</div>
 						</div>
-						<button className="w-full bg-[#8B0000] text-white font-bold py-3 rounded-lg hover:bg-red-900 transition-colors shadow-sm cursor-pointer">
+
+						{/* Price Range */}
+						<div className="mb-6">
+							<h3 className="font-semibold text-gray-800 mb-3">Price Range</h3>
+							<div className="flex items-center gap-2">
+								<input
+									type="number"
+									placeholder="Min"
+									value={minPrice}
+									onChange={(e) => setMinPrice(e.target.value)}
+									className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-red-900 outline-none"
+								/>
+								<span className="text-gray-400">-</span>
+								<input
+									type="number"
+									placeholder="Max"
+									value={maxPrice}
+									onChange={(e) => setMaxPrice(e.target.value)}
+									className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-red-900 outline-none"
+								/>
+							</div>
+						</div>
+
+						{/* Condition */}
+						<div className="mb-6">
+							<h3 className="font-semibold text-gray-800 mb-3">Condition</h3>
+							<div className="space-y-2">
+								{conditions.map((cond) => (
+									<label
+										key={cond}
+										className="flex items-center gap-3 cursor-pointer">
+										<input
+											type="checkbox"
+											checked={selectedConditions.includes(cond)}
+											onChange={() => toggleCondition(cond)}
+											className="w-4 h-4 rounded border-gray-300 text-red-900 focus:ring-red-900"
+										/>
+										<span className="text-gray-600 text-sm">{cond}</span>
+									</label>
+								))}
+							</div>
+						</div>
+
+						<button
+							onClick={handleApplyFilters}
+							className="w-full bg-[#8B0000] text-white font-bold py-3 rounded-lg hover:bg-red-900 transition-colors shadow-sm cursor-pointer">
 							Apply Filters
 						</button>
 					</div>
 				</aside>
 
-				{/* LISTINGS AREA */}
+				{/* --- CONTENT RIGHT SIDE --- */}
 				<div className="grow space-y-10">
 					{/* Header */}
 					<div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
@@ -420,7 +581,7 @@ const MarketplaceClient = ({
 								className="bi bi-plus-circle"
 								viewBox="0 0 16 16">
 								<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16" />
-								<path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4" />
+								<path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4" />
 							</svg>
 							Post Item
 						</button>
@@ -471,9 +632,9 @@ const MarketplaceClient = ({
 							) : (
 								<div className="col-span-full py-12 text-center text-gray-500 bg-white rounded-2xl border border-dashed border-gray-300">
 									<p className="text-lg font-medium">
-										No other listings found.
+										No listings match your filters.
 									</p>
-									<p className="text-sm">Check back later for new items.</p>
+									<p className="text-sm">Try adjusting your search criteria.</p>
 								</div>
 							)}
 						</div>

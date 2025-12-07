@@ -18,7 +18,8 @@ export async function createItem(
 		price: formData.get("price"),
 		rentalFee: formData.get("rentalFee"),
 		rentalDurationDays: formData.get("rentalDurationDays"),
-		// itemPhoto: formData.get('itemPhoto'),
+		// We don't validate the file strictly in Zod here, but we pass it through
+		itemPhoto: formData.get("itemPhoto"),
 	});
 
 	if (!validatedFields.success) {
@@ -55,64 +56,60 @@ export async function createItem(
 			return { message: "Invalid session data. Please login again." };
 		}
 
-		// Ensure studentId exists and is a valid number
-		const sellerId = Number(sessionUser.studentId);
-		if (!sellerId || isNaN(sellerId)) {
+		const sellerId = sessionUser.studentId;
+		if (!sellerId) {
 			return {
 				message: "User profile error: Student ID missing. Please relogin.",
 			};
 		}
 
-		// 3. Prepare Payload
-		// UPDATED: Sending both 'sellerId' (flat) and 'seller' (nested) to match likely DTO structure
-		const itemPayload = {
-			itemName,
-			category,
-			description,
-			transactionType,
-			condition,
-			availabilityStatus: "AVAILABLE",
+		// 3. Prepare FormData for Spring Boot
+		// We use a new FormData object to match the @ModelAttribute expectation in Spring Boot
+		const backendFormData = new FormData();
 
-			// Fix: Add flat sellerId in case DTO expects it at root level
-			sellerId: sellerId,
+		// Append Text Fields (Keys must match ItemDTO fields)
+		backendFormData.append("itemName", itemName);
+		backendFormData.append("category", category);
+		if (description) backendFormData.append("description", description);
+		backendFormData.append("transactionType", transactionType);
+		backendFormData.append("condition", condition);
+		backendFormData.append("availabilityStatus", "AVAILABLE");
+		backendFormData.append("sellerId", sellerId.toString()); // Flat ID for DTO mapping
 
-			// Keep nested object in case DTO expects Entity structure
-			seller: {
-				studentId: sellerId,
-			},
+		// Conditional Fields
+		if (transactionType === "Sell" && price)
+			backendFormData.append("price", price.toString());
+		if (transactionType === "Rent") {
+			if (rentalFee) backendFormData.append("rentalFee", rentalFee.toString());
+			if (rentalDurationDays)
+				backendFormData.append(
+					"rentalDurationDays",
+					rentalDurationDays.toString()
+				);
+		}
+		if (transactionType === "Swap" && price)
+			backendFormData.append("price", price.toString());
 
-			price: transactionType === "Sell" ? price : null,
-			rentalFee: transactionType === "Rent" ? rentalFee : null,
-			rentalDurationDays:
-				transactionType === "Rent" ? rentalDurationDays : null,
-			itemPhotoId: null,
-		};
+		// Append File (Key 'file' matches @RequestParam("file") in Spring Boot)
+		const file = formData.get("itemPhoto") as File;
+		if (file && file.size > 0) {
+			backendFormData.append("file", file);
+		}
 
 		// 4. Send to Spring Boot
+		// Note: Do NOT set Content-Type header manually; fetch sets it with boundary for FormData
 		const response = await fetch(
 			`${process.env.SPRING_BOOT_API_URL}/api/items/addItem`,
 			{
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(itemPayload),
+				body: backendFormData,
 			}
 		);
 
 		if (!response.ok) {
 			const errorText = await response.text();
 			console.error("Spring Boot Error:", errorText);
-
-			let displayError = "Failed to create listing.";
-			try {
-				const errorJson = JSON.parse(errorText);
-				if (errorJson.message) displayError = errorJson.message;
-			} catch (e) {
-				/* ignore json parse error */
-			}
-
-			return { message: displayError };
+			return { message: "Failed to create listing. Please try again." };
 		}
 
 		// 5. Success
@@ -132,7 +129,6 @@ export async function updateItem(
 	formData: FormData
 ): Promise<FormState> {
 	const itemId = formData.get("itemId");
-	const currentPhotoId = formData.get("currentPhotoId");
 
 	// 1. Validate Form Data
 	const validatedFields = CreateItemSchema.safeParse({
@@ -144,6 +140,7 @@ export async function updateItem(
 		price: formData.get("price"),
 		rentalFee: formData.get("rentalFee"),
 		rentalDurationDays: formData.get("rentalDurationDays"),
+		itemPhoto: formData.get("itemPhoto"), // Pass file to validation
 	});
 
 	if (!validatedFields.success) {
@@ -172,34 +169,57 @@ export async function updateItem(
 		const sessionUser = JSON.parse(sessionCookie.value);
 		const sellerId = Number(sessionUser.studentId);
 
-		// 3. Prepare Payload (Include existing photo ID)
-		const itemPayload = {
-			itemName,
-			category,
-			description,
-			transactionType,
-			condition,
-			availabilityStatus: "AVAILABLE", // Or fetch existing status if you want to preserve "SOLD"
-			sellerId: sellerId,
-			seller: { studentId: sellerId },
-			price: transactionType === "Sell" ? price : null,
-			rentalFee: transactionType === "Rent" ? rentalFee : null,
-			rentalDurationDays:
-				transactionType === "Rent" ? rentalDurationDays : null,
-			itemPhotoId: currentPhotoId ? Number(currentPhotoId) : null,
-		};
+		// 3. Prepare FormData for Spring Boot (Multipart)
+		const backendFormData = new FormData();
+
+		backendFormData.append("itemName", itemName);
+		backendFormData.append("category", category);
+		if (description) backendFormData.append("description", description);
+		backendFormData.append("transactionType", transactionType);
+		backendFormData.append("condition", condition);
+		// Ensure availability is preserved or defaulted. You might want a hidden input for this in the future.
+		backendFormData.append("availabilityStatus", "AVAILABLE");
+
+		backendFormData.append("sellerId", sellerId.toString());
+
+		if (transactionType === "Sell" && price)
+			backendFormData.append("price", price.toString());
+		if (transactionType === "Rent") {
+			if (rentalFee) backendFormData.append("rentalFee", rentalFee.toString());
+			if (rentalDurationDays)
+				backendFormData.append(
+					"rentalDurationDays",
+					rentalDurationDays.toString()
+				);
+		}
+		if (transactionType === "Swap" && price)
+			backendFormData.append("price", price.toString());
+
+		// Handle File Update
+		const file = formData.get("itemPhoto") as File;
+		if (file && file.size > 0) {
+			backendFormData.append("file", file);
+		} else {
+			// If no new file, we rely on the backend not overwriting the existing photo
+			// if the file param is null/empty.
+			// Ensure we pass the OLD itemPhoto string if Spring Boot needs it to persist.
+			const currentPhoto = formData.get("currentItemPhoto") as string;
+			if (currentPhoto) backendFormData.append("itemPhoto", currentPhoto);
+		}
 
 		// 4. Send PUT Request
 		const response = await fetch(
 			`${process.env.SPRING_BOOT_API_URL}/api/items/updateItem/${itemId}`,
 			{
 				method: "PUT",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(itemPayload),
+				// Remove Content-Type header for FormData so boundary is set automatically
+				body: backendFormData,
 			}
 		);
 
 		if (!response.ok) {
+			const errorText = await response.text();
+			console.error("Update Failed:", errorText);
 			return { message: "Failed to update item." };
 		}
 
@@ -213,7 +233,6 @@ export async function updateItem(
 	}
 }
 
-// --- DELETE ITEM ACTION ---
 export async function deleteItemAction(itemId: number): Promise<FormState> {
 	try {
 		const cookieStore = await cookies();

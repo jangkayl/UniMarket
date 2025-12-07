@@ -7,6 +7,7 @@ import MarketplaceClient, {
 } from "../components/MarketplaceClient";
 
 // 1. Interface for raw data coming from Spring Boot API
+// Matches the flattened ItemDTO structure
 interface FetchedItem {
 	itemId: number;
 	itemName: string;
@@ -14,7 +15,8 @@ interface FetchedItem {
 	category: string;
 	condition: string;
 	transactionType: string;
-	itemPhotoId: number | null;
+	itemPhoto: string | null; // String filename
+	itemPhotoId: number | null; // Fallback ID
 	sellerId: number;
 	sellerFirstName?: string;
 	sellerLastName?: string;
@@ -53,6 +55,7 @@ const MarketplacePage = async () => {
 			const data: FetchedItem[] = await res.json();
 
 			const mappedItems = data.map((item) => {
+				// Construct seller name safely using flat fields
 				const sellerName =
 					item.sellerFirstName && item.sellerLastName
 						? `${item.sellerFirstName} ${item.sellerLastName}`
@@ -67,6 +70,14 @@ const MarketplacePage = async () => {
 						? `${formattedPrice} / ${item.rentalDurationDays} Days`
 						: formattedPrice;
 
+				// Construct Image URL (Prioritize String filename, fallback to ID)
+				let imageUrl = null;
+				if (item.itemPhoto) {
+					imageUrl = `${process.env.SPRING_BOOT_API_URL}/api/items/images/${item.itemPhoto}`;
+				} else if (item.itemPhotoId) {
+					imageUrl = `${process.env.SPRING_BOOT_API_URL}/uploads/items/${item.itemPhotoId}`;
+				}
+
 				return {
 					id: item.itemId,
 					title: item.itemName,
@@ -75,10 +86,8 @@ const MarketplacePage = async () => {
 					condition: item.condition || "Used",
 					price: finalPriceLabel,
 					seller: sellerName,
-					sellerId: item.sellerId, // Needed for filtering
-					image: item.itemPhotoId
-						? `${process.env.SPRING_BOOT_API_URL}/uploads/items/${item.itemPhotoId}`
-						: null,
+					sellerId: item.sellerId,
+					image: imageUrl,
 				};
 			});
 
