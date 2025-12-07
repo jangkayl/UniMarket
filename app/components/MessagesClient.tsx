@@ -47,9 +47,8 @@ const MessagesClient = ({
 	const router = useRouter();
 	const searchParams = useSearchParams();
 
-	// 1. Initialize Contacts State (Check URL Params IMMEDIATELY)
+	// 1. Initialize Contacts State
 	const [contacts, setContacts] = useState<Contact[]>(() => {
-		// Check if URL has a chatWith ID and sellerName
 		const chatWithId = searchParams.get("chatWith");
 		const sellerNameParam = searchParams.get("sellerName");
 
@@ -57,7 +56,6 @@ const MessagesClient = ({
 			const contactId = Number(chatWithId);
 			const exists = initialContacts.some((c) => c.studentId === contactId);
 
-			// If contact is NOT in the list, create a temporary one using the URL name
 			if (!exists) {
 				let fName = "User";
 				let lName = `#${contactId}`;
@@ -65,11 +63,10 @@ const MessagesClient = ({
 				if (sellerNameParam) {
 					try {
 						const decodedName = decodeURIComponent(sellerNameParam);
-						// Split name: First part is firstName, rest is lastName
 						const parts = decodedName.trim().split(/\s+/);
 						if (parts.length > 0) fName = parts[0];
 						if (parts.length > 1) lName = parts.slice(1).join(" ");
-						else lName = ""; // If only one name, clear last name
+						else lName = "";
 					} catch (e) {}
 				}
 
@@ -79,18 +76,15 @@ const MessagesClient = ({
 					lastName: lName,
 					profilePicture: null,
 				};
-				// Add to top of list so it's selected
 				return [tempContact, ...initialContacts];
 			}
 		}
 		return initialContacts;
 	});
 
-	// Initialize active ID based on prop or URL param (runs once on mount)
 	const [activeContactId, setActiveContactId] = useState<number | null>(() => {
 		if (initialActiveId) return initialActiveId;
 
-		// Check URL param directly during initialization
 		const paramId = searchParams.get("chatWith");
 		if (paramId) return Number(paramId);
 
@@ -99,14 +93,23 @@ const MessagesClient = ({
 	});
 
 	const [messages, setMessages] = useState<Message[]>([]);
-	const [newMessage, setNewMessage] = useState("");
+
+	// --- UPDATED: Initialize newMessage with refItem check ---
+	const [newMessage, setNewMessage] = useState(() => {
+		const refItem = searchParams.get("refItem");
+		if (refItem) {
+			return `Hi, I'm interested in your "${refItem}". Is it still available?`;
+		}
+		return "";
+	});
+	// --------------------------------------------------------
 
 	// UI States for Delete
 	const [showDeleteModal, setShowDeleteModal] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [showToast, setShowToast] = useState(false);
 
-	// 2. Fetch Messages for Active Contact (Polling)
+	// 2. Fetch Messages & Polling (Existing logic preserved)
 	useEffect(() => {
 		if (!activeContactId) return;
 
@@ -173,9 +176,12 @@ const MessagesClient = ({
 			if (updatedContacts.length > 0) {
 				const nextId = updatedContacts[0].studentId;
 				setActiveContactId(nextId);
+				// Clear message input when switching via delete
+				setNewMessage("");
 				router.push(`/messages?chatWith=${nextId}`, { scroll: false });
 			} else {
 				setActiveContactId(null);
+				setNewMessage("");
 				router.push("/messages", { scroll: false });
 			}
 		} else {
@@ -195,7 +201,7 @@ const MessagesClient = ({
 	};
 
 	return (
-		<div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] relative">
+		<div className="flex flex-col lg:flex-row gap-6 h-[calc(90vh-140px)] relative">
 			{/* --- TOAST NOTIFICATION --- */}
 			{showToast && (
 				<div className="fixed top-24 right-10 z-80 bg-green-500 text-white px-6 py-4 rounded-xl shadow-lg flex items-center gap-3 animate-fade-in-down">
@@ -264,6 +270,8 @@ const MessagesClient = ({
 							onClick={() => {
 								if (activeContactId !== contact.studentId) {
 									setActiveContactId(contact.studentId);
+									// Clear new message input when switching chats manually
+									setNewMessage("");
 									router.push(`/messages?chatWith=${contact.studentId}`, {
 										scroll: false,
 									});
@@ -379,9 +387,8 @@ const MessagesClient = ({
 							</button>
 						</div>
 
-						{/* Messages List */}
+						{/* Messages List - CSS AUTO SCROLL TO BOTTOM */}
 						<div className="grow p-6 overflow-y-auto bg-white flex flex-col-reverse gap-3 scrollbar-thin scrollbar-thumb-gray-200">
-							{/* Reverse array to show newest at bottom (visually top of col-reverse) */}
 							{[...messages].reverse().map((msg) => {
 								const isMe = msg.senderId === currentUser.studentId;
 								return (

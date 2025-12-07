@@ -7,15 +7,7 @@ export function middleware(request: NextRequest) {
 	const session = request.cookies.get("session");
 
 	// 2. Define protected routes
-	const protectedRoutes = [
-		"/dashboard",
-		"/loans",
-		"/marketplace",
-		"/profile",
-		"/settings",
-		"/wallet",
-		"/reviews",
-	];
+	const protectedRoutes = ["/dashboard", "/loans", "/marketplace", "/profile"];
 
 	// 3. Check if the current path is a protected route
 	const isProtectedRoute = protectedRoutes.some((route) =>
