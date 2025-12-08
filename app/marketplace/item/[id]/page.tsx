@@ -5,6 +5,7 @@ import Navbar from "../../../components/Navbar";
 import Footer from "../../../components/Footer";
 import ItemDetailsClient from "../../../components/ItemDetailsClient";
 
+// ... (Interfaces) ...
 interface ItemDetails {
 	itemId: number;
 	itemName: string;
@@ -42,6 +43,7 @@ const ItemDetailsPage = async ({
 	const { id } = await params;
 
 	let item: ItemDetails | null = null;
+	let walletBalance = 0.0;
 
 	try {
 		const res = await fetch(
@@ -56,7 +58,7 @@ const ItemDetailsPage = async ({
 
 		item = await res.json();
 
-		// Fetch Seller Details for profile pic
+		// Fetch Seller Details
 		if (item && item.sellerId) {
 			try {
 				const sellerRes = await fetch(
@@ -82,21 +84,33 @@ const ItemDetailsPage = async ({
 
 	if (!item) return notFound();
 
-	// --- CHECK OWNER ---
+	// --- CHECK OWNER & GET CURRENT USER ---
 	const cookieStore = await cookies();
 	const sessionCookie = cookieStore.get("session");
 	let isOwner = false;
+	let currentUserId = 0;
 
 	if (sessionCookie) {
 		try {
 			const user = JSON.parse(sessionCookie.value);
+			currentUserId = user.studentId;
 			if (Number(user.studentId) === Number(item.sellerId)) {
 				isOwner = true;
 			}
+
+			try {
+				const walletRes = await fetch(
+					`${process.env.SPRING_BOOT_API_URL}/api/wallet/${user.studentId}`,
+					{ cache: "no-store" }
+				);
+				if (walletRes.ok) {
+					const walletData = await walletRes.json();
+					walletBalance = walletData.balance || 0.0;
+				}
+			} catch (e) {}
 		} catch (e) {}
 	}
 
-	// Prepare data for Client Component
 	let imageUrl = null;
 	if (item.itemPhoto) {
 		imageUrl = `${process.env.SPRING_BOOT_API_URL}/api/items/images/${item.itemPhoto}`;
@@ -117,15 +131,15 @@ const ItemDetailsPage = async ({
 			? `${item.sellerFirstName} ${item.sellerLastName}`
 			: `Student #${item.sellerId}`;
 
-	const chatUrl = `/messages?chatWith=${
-		item.sellerId
+	// --- CRITICAL FIX: Include &itemId=${item.itemId} in the URL ---
+	const chatUrl = `/messages?chatWith=${item.sellerId}&itemId=${
+		item.itemId
 	}&refItem=${encodeURIComponent(
 		item.itemName
 	)}&sellerName=${encodeURIComponent(
 		sellerName
 	)}&sellerPic=${encodeURIComponent(item.sellerProfilePicture || "")}`;
 
-	// Simple Item Object passed to client
 	const clientItemData = {
 		itemId: item.itemId,
 		itemName: item.itemName,
@@ -176,8 +190,10 @@ const ItemDetailsPage = async ({
 					item={clientItemData}
 					seller={clientSellerData}
 					isOwner={isOwner}
+					currentUserId={currentUserId}
 					formattedPrice={formattedPrice}
 					chatUrl={chatUrl}
+					walletBalance={walletBalance}
 				/>
 			</main>
 			<Footer />

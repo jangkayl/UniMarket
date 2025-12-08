@@ -30,6 +30,7 @@ const Navbar = () => {
 		{ name: "Dashboard", href: "/dashboard" },
 		{ name: "Marketplace", href: "/marketplace" },
 		{ name: "Borrow/Loans", href: "/loans" },
+		{ name: "Orders", href: "/orders" },
 	];
 
 	return (

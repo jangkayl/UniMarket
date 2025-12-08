@@ -272,7 +272,7 @@ const NotificationsClient = ({
 					{/* LEFT COLUMN: Notification List (Scrollable) */}
 					<div className="lg:col-span-3 space-y-4 h-full overflow-y-auto pr-2 custom-scrollbar">
 						{notifications.length > 0 ? (
-							notifications.map((notif) => (
+							[...notifications].reverse().map((notif) => (
 								<div
 									key={notif.notificationId}
 									className={`border rounded-xl p-6 flex flex-col md:flex-row gap-4 hover:shadow-sm transition-shadow ${

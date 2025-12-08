@@ -8,7 +8,17 @@ import {
 	sendMessageAction,
 	deleteConversationAction,
 } from "@/app/actions/chat";
+import {
+	getActiveTransactionAction,
+	getPendingTransactionsAction,
+	cancelTransactionAction,
+	acceptTransactionAction,
+	confirmTransactionAction,
+} from "@/app/actions/transaction";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
+// --- Interfaces ---
 interface User {
 	studentId: number;
 	firstName: string;
@@ -34,6 +44,17 @@ interface Contact {
 	profilePicture: string | null;
 }
 
+interface TransactionData {
+	transactionId: number;
+	amount: number;
+	transactionType: string;
+	status: string;
+	itemId: number;
+	itemName?: string;
+	buyerId: number;
+	sellerId: number;
+}
+
 interface MessagesClientProps {
 	currentUser: User;
 	initialContacts: Contact[];
@@ -42,23 +63,23 @@ interface MessagesClientProps {
 
 const MessagesClient = ({
 	currentUser,
-	initialContacts,
+	initialContacts = [],
 	initialActiveId,
 }: MessagesClientProps) => {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 
-	// 1. Initialize Contacts State (Check URL Params IMMEDIATELY)
+	// 1. Initialize Contacts State
 	const [contacts, setContacts] = useState<Contact[]>(() => {
 		const chatWithId = searchParams.get("chatWith");
 		const sellerNameParam = searchParams.get("sellerName");
 		const sellerPicParam = searchParams.get("sellerPic");
+		const safeContacts = initialContacts || [];
 
 		if (chatWithId) {
 			const contactId = Number(chatWithId);
-			const exists = initialContacts.some((c) => c.studentId === contactId);
+			const exists = safeContacts.some((c) => c.studentId === contactId);
 
-			// If contact is NOT in the list, create a temporary one using URL data
 			if (!exists) {
 				let fName = "User";
 				let lName = `#${contactId}`;
@@ -77,31 +98,43 @@ const MessagesClient = ({
 					studentId: contactId,
 					firstName: fName,
 					lastName: lName,
-					// Use the picture from the URL if available
 					profilePicture: sellerPicParam
 						? decodeURIComponent(sellerPicParam)
 						: null,
 				};
-				return [tempContact, ...initialContacts];
+				return [tempContact, ...safeContacts];
 			}
 		}
-		return initialContacts;
+		return safeContacts;
 	});
 
-	// 2. Initialize Active ID
 	const [activeContactId, setActiveContactId] = useState<number | null>(() => {
 		if (initialActiveId) return initialActiveId;
 		const paramId = searchParams.get("chatWith");
 		if (paramId) return Number(paramId);
-		if (initialContacts.length > 0) return initialContacts[0].studentId;
+		if (initialContacts && initialContacts.length > 0)
+			return initialContacts[0].studentId;
 		return null;
 	});
 
 	const [messages, setMessages] = useState<Message[]>([]);
+	const [activeTransaction, setActiveTransaction] =
+		useState<TransactionData | null>(null);
+	const [pendingPartnerIds, setPendingPartnerIds] = useState<Set<number>>(
+		new Set()
+	);
 
-	// 3. Initialize New Message with refItem text
+	// Loading States
+	const [isActionLoading, setIsActionLoading] = useState(false);
+
 	const [newMessage, setNewMessage] = useState(() => {
+		const initialMessage = searchParams.get("initialMessage");
 		const refItem = searchParams.get("refItem");
+
+		if (initialMessage) {
+			return decodeURIComponent(initialMessage);
+		}
+
 		if (refItem) {
 			try {
 				return `Hi, I'm interested in your "${decodeURIComponent(
@@ -114,59 +147,87 @@ const MessagesClient = ({
 		return "";
 	});
 
-	// UI States
+	// --- MODAL STATES ---
 	const [showDeleteModal, setShowDeleteModal] = useState(false);
+	const [showCancelModal, setShowCancelModal] = useState(false);
+	const [showAcceptModal, setShowAcceptModal] = useState(false);
+	const [showReceiptModal, setShowReceiptModal] = useState(false);
+
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [showToast, setShowToast] = useState(false);
+	const [toastMsg, setToastMsg] = useState("");
 
-	// 4. Fetch Messages & Polling (The ONLY useEffect needed)
+	// 2. Fetch Data
 	useEffect(() => {
-		if (!activeContactId) return;
+		const fetchData = async () => {
+			const promises: Promise<
+				TransactionData[] | Message[] | TransactionData | null
+			>[] = [getPendingTransactionsAction(currentUser.studentId)];
 
-		const fetchMessages = async () => {
-			const data = await getConversationAction(
-				currentUser.studentId,
-				activeContactId
-			);
-			setMessages(data);
+			if (activeContactId) {
+				promises.push(
+					getConversationAction(currentUser.studentId, activeContactId)
+				);
+				promises.push(
+					getActiveTransactionAction(currentUser.studentId, activeContactId)
+				);
+			}
 
-			// Update contact details if real data comes back (syncing profile pics etc)
-			if (data && data.length > 0) {
-				const firstMsg = data[0];
-				const otherUser =
-					firstMsg.sender?.studentId === currentUser.studentId
-						? firstMsg.receiver
-						: firstMsg.sender;
+			const results = await Promise.all(promises);
+			const pendingTxs = results[0] as TransactionData[];
 
-				if (otherUser) {
-					setContacts((prev) => {
-						return prev.map((c) => {
-							if (c.studentId === otherUser.studentId) {
-								// Update if it was a placeholder
-								if (c.firstName === "User" || !c.profilePicture) {
-									return {
-										...c,
-										firstName: otherUser.firstName,
-										lastName: otherUser.lastName,
-										profilePicture:
-											otherUser.profilePicture || c.profilePicture,
-									};
+			const newPendingSet = new Set<number>();
+			if (pendingTxs && Array.isArray(pendingTxs)) {
+				pendingTxs.forEach((tx) => {
+					const partnerId =
+						tx.buyerId === currentUser.studentId ? tx.sellerId : tx.buyerId;
+					newPendingSet.add(partnerId);
+				});
+			}
+			setPendingPartnerIds(newPendingSet);
+
+			if (activeContactId) {
+				const msgs = results[1] as Message[];
+				const transaction = results[2] as TransactionData | null;
+
+				setMessages(msgs || []);
+				setActiveTransaction(transaction);
+
+				if (msgs && msgs.length > 0) {
+					const firstMsg = msgs[0];
+					const otherUser =
+						firstMsg.sender?.studentId === currentUser.studentId
+							? firstMsg.receiver
+							: firstMsg.sender;
+
+					if (otherUser) {
+						setContacts((prev) => {
+							return prev.map((c) => {
+								if (c.studentId === otherUser.studentId) {
+									if (c.firstName === "User" || !c.profilePicture) {
+										return {
+											...c,
+											firstName: otherUser.firstName,
+											lastName: otherUser.lastName,
+											profilePicture:
+												otherUser.profilePicture || c.profilePicture,
+										};
+									}
 								}
-							}
-							return c;
+								return c;
+							});
 						});
-					});
+					}
 				}
 			}
 		};
 
-		fetchMessages();
+		fetchData();
 
-		const interval = setInterval(fetchMessages, 3000);
+		const interval = setInterval(fetchData, 3000);
 		return () => clearInterval(interval);
 	}, [activeContactId, currentUser.studentId]);
 
-	// 6. Send Message
 	const handleSendMessage = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!newMessage.trim() || !activeContactId) return;
@@ -193,7 +254,20 @@ const MessagesClient = ({
 		}
 	};
 
-	// 7. Delete Conversation Handler
+	const handleRequestDelete = () => {
+		if (
+			activeTransaction &&
+			activeTransaction.status.toLowerCase() !== "cancelled" &&
+			activeTransaction.status.toLowerCase() !== "completed"
+		) {
+			alert(
+				`Cannot delete this conversation because there is an active transaction (${activeTransaction.status}). Please complete or cancel the transaction first.`
+			);
+			return;
+		}
+		setShowDeleteModal(true);
+	};
+
 	const handleDeleteConversation = async () => {
 		if (!activeContactId) return;
 		setIsDeleting(true);
@@ -209,7 +283,9 @@ const MessagesClient = ({
 			);
 			setContacts(updatedContacts);
 			setMessages([]);
+			setActiveTransaction(null);
 
+			setToastMsg("Conversation deleted.");
 			setShowToast(true);
 			setTimeout(() => setShowToast(false), 3000);
 
@@ -219,7 +295,6 @@ const MessagesClient = ({
 			if (updatedContacts.length > 0) {
 				const nextId = updatedContacts[0].studentId;
 				setActiveContactId(nextId);
-				// Clear message input
 				setNewMessage("");
 				router.push(`/messages?chatWith=${nextId}`, { scroll: false });
 			} else {
@@ -233,15 +308,97 @@ const MessagesClient = ({
 		}
 	};
 
+	// --- ACTION HANDLERS ---
+	const executeAction = async (actionType: "ACCEPT" | "CONFIRM" | "CANCEL") => {
+		if (!activeTransaction) return;
+		setIsActionLoading(true);
+
+		let res;
+		let sysMsg = "";
+
+		if (actionType === "CANCEL") {
+			res = await cancelTransactionAction(
+				activeTransaction.transactionId,
+				currentUser.studentId
+			);
+			sysMsg = `Transaction for "${activeTransaction.itemName}" was cancelled.`;
+		} else if (actionType === "ACCEPT") {
+			res = await acceptTransactionAction(
+				activeTransaction.transactionId,
+				currentUser.studentId
+			);
+			sysMsg = `Seller accepted the order for "${activeTransaction.itemName}". Please arrange the meetup.`;
+		} else if (actionType === "CONFIRM") {
+			res = await confirmTransactionAction(
+				activeTransaction.transactionId,
+				currentUser.studentId
+			);
+			sysMsg = `Buyer confirmed receipt of "${activeTransaction.itemName}". Transaction Complete.`;
+		}
+
+		if (res?.success) {
+			const newStatus =
+				actionType === "CANCEL"
+					? "Cancelled"
+					: actionType === "ACCEPT"
+					? activeTransaction.amount > 0
+						? "To Meet"
+						: "To Pay"
+					: "Completed";
+			setActiveTransaction({ ...activeTransaction, status: newStatus });
+
+			await sendMessageAction({
+				senderId: currentUser.studentId,
+				receiverId: activeContactId!,
+				messageContent: sysMsg,
+				messageType: "SYSTEM",
+				isRead: false,
+			});
+
+			setToastMsg("Success!");
+			setShowToast(true);
+			setTimeout(() => setShowToast(false), 3000);
+
+			// Close all modals
+			setShowCancelModal(false);
+			setShowAcceptModal(false);
+			setShowReceiptModal(false);
+		} else {
+			alert("Action failed.");
+		}
+		setIsActionLoading(false);
+	};
+
 	const activeContact = contacts.find((c) => c.studentId === activeContactId);
 
 	const getAvatarUrl = (photo: string | null) => {
-		return photo
-			? `${
-					process.env.SPRING_BOOT_API_URL || "http://localhost:8080"
-			  }/api/students/images/${photo}`
-			: null;
+		return photo ? `${API_BASE_URL}/api/students/images/${photo}` : null;
 	};
+
+	const getTransactionStatusColor = (status: string) => {
+		switch (status?.toLowerCase()) {
+			case "completed":
+				return "bg-green-50 border-green-200 text-green-800";
+			case "pending":
+				return "bg-yellow-50 border-yellow-200 text-yellow-800";
+			case "to pay":
+			case "to meet":
+				return "bg-blue-50 border-blue-200 text-blue-800";
+			case "cancelled":
+				return "bg-red-50 border-red-200 text-red-800";
+			default:
+				return "bg-gray-50 border-gray-200 text-gray-800";
+		}
+	};
+
+	const isBuyer = activeTransaction?.buyerId === currentUser.studentId;
+	const status = activeTransaction?.status.toLowerCase();
+
+	const isDeleteDisabled = !!(
+		activeTransaction &&
+		activeTransaction.status.toLowerCase() !== "cancelled" &&
+		activeTransaction.status.toLowerCase() !== "completed"
+	);
 
 	return (
 		<div className="flex flex-col lg:flex-row gap-6 h-[calc(90vh-140px)] relative">
@@ -259,12 +416,14 @@ const MessagesClient = ({
 					</svg>
 					<div>
 						<h4 className="font-bold">Success</h4>
-						<p className="text-sm">Conversation deleted.</p>
+						<p className="text-sm">{toastMsg}</p>
 					</div>
 				</div>
 			)}
 
-			{/* Delete Confirmation Modal */}
+			{/* --- CONFIRMATION MODALS --- */}
+
+			{/* 1. Delete Chat Modal */}
 			{showDeleteModal && (
 				<div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
 					<div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full animate-fade-in-up">
@@ -274,9 +433,9 @@ const MessagesClient = ({
 								width="24"
 								height="24"
 								fill="currentColor"
-								className="bi bi-exclamation-triangle-fill"
+								className="bi bi-trash-fill"
 								viewBox="0 0 16 16">
-								<path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" />
+								<path d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5M8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5m3 .5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 1 0" />
 							</svg>
 							<h3 className="text-xl font-bold">Delete Chat?</h3>
 						</div>
@@ -301,6 +460,127 @@ const MessagesClient = ({
 				</div>
 			)}
 
+			{/* 2. Cancel Transaction Modal */}
+			{showCancelModal && (
+				<div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+					<div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full animate-scale-up">
+						<div className="flex items-center gap-3 text-red-900 mb-2">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="24"
+								height="24"
+								fill="currentColor"
+								className="bi bi-x-circle-fill"
+								viewBox="0 0 16 16">
+								<path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293z" />
+							</svg>
+							<h3 className="text-xl font-bold">Cancel Transaction?</h3>
+						</div>
+						<p className="text-gray-600 mb-2 leading-relaxed">
+							Are you sure you want to cancel the request for{" "}
+							<span className="font-bold text-gray-900">
+								{activeTransaction?.itemName || "this item"}
+							</span>
+							?
+						</p>
+						<p className="text-xs text-gray-400 mb-6">
+							If you paid via Wallet, funds will be refunded to your account
+							immediately.
+						</p>
+						<div className="flex gap-3 justify-end">
+							<button
+								onClick={() => setShowCancelModal(false)}
+								className="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors">
+								Keep it
+							</button>
+							<button
+								onClick={() => executeAction("CANCEL")}
+								disabled={isActionLoading}
+								className="px-5 py-2.5 rounded-lg bg-red-900 text-white font-semibold hover:bg-red-800 transition-colors disabled:bg-red-400">
+								{isActionLoading ? "Processing..." : "Yes, Cancel"}
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* 3. Accept Order Modal */}
+			{showAcceptModal && (
+				<div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+					<div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full animate-scale-up">
+						<div className="flex items-center gap-3 text-green-700 mb-2">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="24"
+								height="24"
+								fill="currentColor"
+								className="bi bi-check-circle-fill"
+								viewBox="0 0 16 16">
+								<path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z" />
+							</svg>
+							<h3 className="text-xl font-bold">Accept Order?</h3>
+						</div>
+						<p className="text-gray-600 mb-6 leading-relaxed">
+							By accepting, you agree to meet with the buyer to hand over{" "}
+							<span className="font-bold">{activeTransaction?.itemName}</span>.
+						</p>
+						<div className="flex gap-3 justify-end">
+							<button
+								onClick={() => setShowAcceptModal(false)}
+								className="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors">
+								Cancel
+							</button>
+							<button
+								onClick={() => executeAction("ACCEPT")}
+								disabled={isActionLoading}
+								className="px-5 py-2.5 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors disabled:bg-green-400">
+								{isActionLoading ? "Processing..." : "Yes, Accept"}
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* 4. Confirm Receipt Modal */}
+			{showReceiptModal && (
+				<div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+					<div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full animate-scale-up">
+						<div className="flex items-center gap-3 text-blue-800 mb-2">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="24"
+								height="24"
+								fill="currentColor"
+								className="bi bi-bag-check-fill"
+								viewBox="0 0 16 16">
+								<path
+									fillRule="evenodd"
+									d="M10.5 3.5a2.5 2.5 0 0 0-5 0V4h5zm1 0V4H15v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V4h3.5v-.5a3.5 3.5 0 1 1 7 0m-.646 5.354a.5.5 0 0 0-.708-.708L7.5 10.793 6.354 9.646a.5.5 0 1 0-.708.708l1.5 1.5a.5.5 0 0 0 .708 0z"
+								/>
+							</svg>
+							<h3 className="text-xl font-bold">Item Received?</h3>
+						</div>
+						<p className="text-gray-600 mb-6 leading-relaxed">
+							Only confirm if you have inspected and received the item. This
+							action will release the funds to the seller and cannot be undone.
+						</p>
+						<div className="flex gap-3 justify-end">
+							<button
+								onClick={() => setShowReceiptModal(false)}
+								className="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors">
+								Not Yet
+							</button>
+							<button
+								onClick={() => executeAction("CONFIRM")}
+								disabled={isActionLoading}
+								className="px-5 py-2.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors disabled:bg-blue-400">
+								{isActionLoading ? "Processing..." : "Yes, Received"}
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
 			{/* LEFT: CONTACTS LIST */}
 			<div className="w-full lg:w-1/3 flex flex-col gap-4 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
 				<div className="p-4 border-b border-gray-100 font-bold text-lg bg-gray-50 text-gray-800">
@@ -313,7 +593,7 @@ const MessagesClient = ({
 							onClick={() => {
 								if (activeContactId !== contact.studentId) {
 									setActiveContactId(contact.studentId);
-									setNewMessage(""); // Clear auto-filled message when manually switching
+									setNewMessage("");
 									router.push(`/messages?chatWith=${contact.studentId}`, {
 										scroll: false,
 									});
@@ -348,9 +628,18 @@ const MessagesClient = ({
 									</div>
 								)}
 							</div>
-							<div className="grow min-w-0">
-								<div className="font-bold text-gray-900 truncate">
-									{contact.firstName} {contact.lastName}
+							<div className="grow min-w-0 flex flex-col">
+								<div className="flex justify-between items-center">
+									<div className="font-bold text-gray-900 truncate">
+										{contact.firstName} {contact.lastName}
+									</div>
+
+									{/* --- SIDEBAR PENDING BADGE --- */}
+									{pendingPartnerIds.has(contact.studentId) && (
+										<span className="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase shadow-sm">
+											Pending
+										</span>
+									)}
 								</div>
 								<div className="text-xs text-gray-500 truncate">
 									Click to view conversation
@@ -411,11 +700,20 @@ const MessagesClient = ({
 								</div>
 							</div>
 
-							{/* DELETE BUTTON */}
+							{/* DELETE BUTTON with Validation */}
 							<button
-								onClick={() => setShowDeleteModal(true)}
-								className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-								title="Delete Conversation">
+								onClick={handleRequestDelete}
+								disabled={isDeleteDisabled}
+								className={`p-2 rounded-full transition-colors ${
+									isDeleteDisabled
+										? "text-gray-300 cursor-not-allowed"
+										: "text-gray-400 hover:text-red-600 hover:bg-red-50"
+								}`}
+								title={
+									isDeleteDisabled
+										? "Cannot delete while transaction is active"
+										: "Delete Conversation"
+								}>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									width="20"
@@ -429,7 +727,87 @@ const MessagesClient = ({
 							</button>
 						</div>
 
-						{/* Messages List - CSS AUTO SCROLL TO BOTTOM */}
+						{/* --- TRANSACTION NOTICE BANNER --- */}
+						{activeTransaction && (
+							<div
+								className={`mx-6 mt-4 p-4 rounded-xl border flex flex-col sm:flex-row justify-between items-center shadow-sm animate-fade-in gap-4 ${getTransactionStatusColor(
+									activeTransaction.status
+								)}`}>
+								<div className="text-center sm:text-left">
+									<div className="text-xs font-bold uppercase tracking-wider mb-1 opacity-80 flex items-center justify-center sm:justify-start gap-2">
+										{status === "cancelled" && (
+											<span className="text-red-600">⚠</span>
+										)}
+										{status === "completed" && (
+											<span className="text-green-600">✔</span>
+										)}
+										{activeTransaction.status} Transaction
+									</div>
+									<div className="font-bold text-gray-900 text-lg">
+										₱{activeTransaction.amount.toLocaleString()}
+									</div>
+									<div className="text-xs mt-1 font-medium text-gray-700">
+										for{" "}
+										<span className="font-bold">
+											&quot;{activeTransaction.itemName || "Item"}&quot;
+										</span>
+									</div>
+								</div>
+
+								<div className="flex flex-col gap-2 min-w-[140px]">
+									{status === "pending" && (
+										<>
+											{!isBuyer && (
+												<div className="flex gap-2">
+													<button
+														onClick={() => setShowAcceptModal(true)}
+														className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg transition-colors shadow-sm">
+														Accept
+													</button>
+													<button
+														onClick={() => setShowCancelModal(true)}
+														className="flex-1 bg-white border border-red-200 text-red-700 hover:bg-red-50 text-xs font-bold py-2 rounded-lg transition-colors">
+														Decline
+													</button>
+												</div>
+											)}
+											{isBuyer && (
+												<button
+													onClick={() => setShowCancelModal(true)}
+													className="w-full bg-white border border-red-200 text-red-700 hover:bg-red-50 text-xs font-bold py-2 rounded-lg transition-colors">
+													Cancel Request
+												</button>
+											)}
+										</>
+									)}
+
+									{(status === "to meet" || status === "to pay") && (
+										<>
+											{isBuyer ? (
+												<button
+													onClick={() => setShowReceiptModal(true)}
+													className="w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg transition-colors shadow-sm">
+													I Received the Item
+												</button>
+											) : (
+												<div className="text-xs font-medium text-center italic opacity-75">
+													Waiting for buyer confirmation...
+												</div>
+											)}
+										</>
+									)}
+
+									{(status === "completed" || status === "cancelled") && (
+										<div className="text-xs font-bold text-center opacity-60">
+											{status === "completed"
+												? "Funds Released"
+												: "Funds Refunded"}
+										</div>
+									)}
+								</div>
+							</div>
+						)}
+
 						<div className="grow p-6 overflow-y-auto bg-white flex flex-col-reverse gap-3 scrollbar-thin scrollbar-thumb-gray-200">
 							{[...messages].reverse().map((msg) => {
 								const isMe = msg.senderId === currentUser.studentId;
@@ -463,7 +841,6 @@ const MessagesClient = ({
 							})}
 						</div>
 
-						{/* Input Area */}
 						<div className="p-4 bg-white border-t border-gray-100">
 							<form
 								onSubmit={handleSendMessage}

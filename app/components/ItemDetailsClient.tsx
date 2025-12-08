@@ -3,7 +3,10 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import PurchaseModal from "@/app/components/PurchaseModal";
+import { createTransactionAction } from "@/app/actions/transaction";
+import { sendMessageAction } from "@/app/actions/chat";
 
 interface ItemDetailsClientProps {
 	item: {
@@ -26,24 +29,103 @@ interface ItemDetailsClientProps {
 		profilePictureUrl: string | null;
 	};
 	isOwner: boolean;
+	currentUserId: number;
 	formattedPrice: string;
 	chatUrl: string;
+	walletBalance: number;
 }
 
 const ItemDetailsClient = ({
 	item,
 	seller,
 	isOwner,
+	currentUserId,
 	formattedPrice,
 	chatUrl,
+	walletBalance,
 }: ItemDetailsClientProps) => {
-	// Modal State
+	const router = useRouter();
 	const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
 
-	const handlePurchaseConfirm = (method: "WALLET" | "MEETUP") => {
-		// Backend integration will go here later
-		alert(`Purchase confirmed via ${method}!`);
-		setIsPurchaseModalOpen(false);
+	// Store the redirect URL to be used after the modal success screen
+	const [successRedirectUrl, setSuccessRedirectUrl] = useState("");
+
+	// This function is now purely backend logic called by the modal
+	const handlePurchaseConfirm = async (
+		method: "WALLET" | "MEETUP"
+	): Promise<boolean> => {
+		// Logic from modal ensures validation, so we proceed directly
+		const price =
+			item.transactionType === "Rent" ? item.rentalFee || 0 : item.price || 0;
+
+		let dueDate: string | null = null;
+		if (item.transactionType === "Rent" && item.rentalDurationDays) {
+			const date = new Date();
+			date.setDate(date.getDate() + item.rentalDurationDays);
+			dueDate = date.toISOString().split("T")[0];
+		}
+
+		const transactionData = {
+			amount: price,
+			transactionType: item.transactionType,
+			status: "Pending",
+			transactionDate: new Date().toISOString().split("T")[0],
+			dueDate: dueDate,
+			notes: `Method: ${method}. Item: ${item.itemName}`,
+			buyerId: currentUserId,
+			sellerId: item.sellerId,
+			itemId: item.itemId,
+		};
+
+		// 1. Create Transaction in Backend
+		const res = await createTransactionAction(transactionData);
+
+		if (res.success) {
+			// 2. AUTO-SEND MESSAGE TO SELLER
+			let autoMessage = "";
+			if (item.transactionType === "Rent") {
+				autoMessage = `I have requested to rent your "${item.itemName}" for ${item.rentalDurationDays} days via ${method}. Please confirm.`;
+			} else {
+				autoMessage = `I have confirmed to buy your "${item.itemName}" via ${method}. When can we meet/exchange?`;
+			}
+
+			const messagePayload = {
+				senderId: currentUserId,
+				receiverId: item.sellerId,
+				messageContent: autoMessage,
+				messageType: "CHAT",
+				isRead: false,
+				itemId: item.itemId, // Link the message to the item
+			};
+
+			// Fire and forget (or await if strict)
+			await sendMessageAction(messagePayload);
+
+			// 3. Prepare Redirect URL
+			// IMPORTANT: Construct a clean URL without 'refItem' so the input box on the next page is empty.
+			// We include sellerName/Pic to ensure the contact exists in the sidebar if they haven't chatted before.
+			const cleanRedirectUrl = `/messages?chatWith=${
+				item.sellerId
+			}&sellerName=${encodeURIComponent(
+				seller.name
+			)}&sellerPic=${encodeURIComponent(
+				seller.profilePictureUrl || ""
+			)}&txCreated=true`;
+
+			setSuccessRedirectUrl(cleanRedirectUrl);
+			return true;
+		} else {
+			alert("Failed to process transaction. Please try again.");
+			return false;
+		}
+	};
+
+	const handleSuccessRedirect = () => {
+		if (successRedirectUrl) {
+			router.push(successRedirectUrl);
+		} else {
+			router.push(chatUrl);
+		}
 	};
 
 	const isRental = item.transactionType === "Rent";
@@ -240,7 +322,6 @@ const ItemDetailsClient = ({
 							</button>
 						</Link>
 					) : (
-						// --- MODAL TRIGGER BUTTON ---
 						<button
 							onClick={() => setIsPurchaseModalOpen(true)}
 							className="w-full bg-yellow-400 text-gray-900 text-lg font-bold py-4 rounded-xl hover:bg-yellow-500 transition-transform transform hover:scale-[1.02] shadow-md cursor-pointer mt-auto">
@@ -254,13 +335,14 @@ const ItemDetailsClient = ({
 				</div>
 			</div>
 
-			{/* --- PURCHASE MODAL --- */}
 			<PurchaseModal
 				isOpen={isPurchaseModalOpen}
 				onClose={() => setIsPurchaseModalOpen(false)}
 				itemTitle={item.itemName}
 				itemPrice={formattedPrice}
+				walletBalance={walletBalance}
 				onConfirm={handlePurchaseConfirm}
+				onSuccess={handleSuccessRedirect}
 			/>
 		</>
 	);
