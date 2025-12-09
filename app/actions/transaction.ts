@@ -6,6 +6,7 @@ export interface TransactionHistoryItem {
 	transactionType: string;
 	status: string;
 	transactionDate: string;
+	dueDate?: string | null;
 	itemId: number;
 	itemName: string;
 	itemImage: string | null;
@@ -25,7 +26,7 @@ export async function getActiveTransactionAction(
 			{ cache: "no-store" }
 		);
 
-		if (res.status === 204) return null; // No content
+		if (res.status === 204) return null;
 		if (res.ok) {
 			return await res.json();
 		}
@@ -41,6 +42,22 @@ export async function getPendingTransactionsAction(userId: number) {
 			`${process.env.SPRING_BOOT_API_URL}/api/transactions/pending/${userId}`,
 			{ cache: "no-store" }
 		);
+		if (res.ok) {
+			return await res.json();
+		}
+		return [];
+	} catch (error) {
+		return [];
+	}
+}
+
+export async function getUserTransactionsAction(userId: number) {
+	try {
+		const res = await fetch(
+			`${process.env.SPRING_BOOT_API_URL}/api/transactions/history/${userId}`,
+			{ cache: "no-store" }
+		);
+
 		if (res.ok) {
 			return await res.json();
 		}
@@ -81,7 +98,6 @@ export async function createTransactionAction(data: {
 	}
 }
 
-// --- Cancel Transaction Action ---
 export async function cancelTransactionAction(
 	transactionId: number,
 	userId: number
@@ -106,23 +122,6 @@ export async function cancelTransactionAction(
 		};
 	} catch (error) {
 		return { success: false, message: "Network error" };
-	}
-}
-
-// --- Fetch User History ---
-export async function getUserTransactionsAction(userId: number) {
-	try {
-		const res = await fetch(
-			`${process.env.SPRING_BOOT_API_URL}/api/transactions/history/${userId}`,
-			{ cache: "no-store" }
-		);
-
-		if (res.ok) {
-			return await res.json();
-		}
-		return [];
-	} catch (error) {
-		return [];
 	}
 }
 
@@ -152,6 +151,41 @@ export async function confirmTransactionAction(
 	try {
 		const res = await fetch(
 			`${process.env.SPRING_BOOT_API_URL}/api/transactions/${transactionId}/confirm`,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ userId }),
+			}
+		);
+		return { success: res.ok, message: await res.text() };
+	} catch (e) {
+		return { success: false, message: "Network error" };
+	}
+}
+
+export async function returnItemAction(transactionId: number, userId: number) {
+	try {
+		const res = await fetch(
+			`${process.env.SPRING_BOOT_API_URL}/api/transactions/${transactionId}/return`,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ userId }),
+			}
+		);
+		return { success: res.ok, message: await res.text() };
+	} catch (e) {
+		return { success: false, message: "Network error" };
+	}
+}
+
+export async function completeReturnAction(
+	transactionId: number,
+	userId: number
+) {
+	try {
+		const res = await fetch(
+			`${process.env.SPRING_BOOT_API_URL}/api/transactions/${transactionId}/complete-return`,
 			{
 				method: "POST",
 				headers: { "Content-Type": "application/json" },

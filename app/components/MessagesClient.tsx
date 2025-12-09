@@ -14,6 +14,8 @@ import {
 	cancelTransactionAction,
 	acceptTransactionAction,
 	confirmTransactionAction,
+	returnItemAction,
+	completeReturnAction,
 } from "@/app/actions/transaction";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -69,7 +71,7 @@ const MessagesClient = ({
 	const router = useRouter();
 	const searchParams = useSearchParams();
 
-	// 1. Initialize Contacts State
+	// 1. Initialize Contacts State (URL Logic contained here)
 	const [contacts, setContacts] = useState<Contact[]>(() => {
 		const chatWithId = searchParams.get("chatWith");
 		const sellerNameParam = searchParams.get("sellerName");
@@ -98,6 +100,7 @@ const MessagesClient = ({
 					studentId: contactId,
 					firstName: fName,
 					lastName: lName,
+					// Use the picture from the URL if available
 					profilePicture: sellerPicParam
 						? decodeURIComponent(sellerPicParam)
 						: null,
@@ -147,7 +150,7 @@ const MessagesClient = ({
 		return "";
 	});
 
-	// --- MODAL STATES ---
+	// Modal States
 	const [showDeleteModal, setShowDeleteModal] = useState(false);
 	const [showCancelModal, setShowCancelModal] = useState(false);
 	const [showAcceptModal, setShowAcceptModal] = useState(false);
@@ -157,13 +160,15 @@ const MessagesClient = ({
 	const [showToast, setShowToast] = useState(false);
 	const [toastMsg, setToastMsg] = useState("");
 
-	// 2. Fetch Data
+	// 2. Fetch Data (Messages + Transaction + Sidebar Pending List)
 	useEffect(() => {
 		const fetchData = async () => {
+			// Create an array of promises with a union type for the results
 			const promises: Promise<
 				TransactionData[] | Message[] | TransactionData | null
 			>[] = [getPendingTransactionsAction(currentUser.studentId)];
 
+			// Only fetch messages/active tx if a chat is selected
 			if (activeContactId) {
 				promises.push(
 					getConversationAction(currentUser.studentId, activeContactId)
@@ -176,6 +181,7 @@ const MessagesClient = ({
 			const results = await Promise.all(promises);
 			const pendingTxs = results[0] as TransactionData[];
 
+			// Update Sidebar Badges
 			const newPendingSet = new Set<number>();
 			if (pendingTxs && Array.isArray(pendingTxs)) {
 				pendingTxs.forEach((tx) => {
@@ -191,8 +197,9 @@ const MessagesClient = ({
 				const transaction = results[2] as TransactionData | null;
 
 				setMessages(msgs || []);
-				setActiveTransaction(transaction);
+				setActiveTransaction(transaction); // This updates the banner
 
+				// Update contact details from message headers if needed
 				if (msgs && msgs.length > 0) {
 					const firstMsg = msgs[0];
 					const otherUser =
@@ -228,6 +235,7 @@ const MessagesClient = ({
 		return () => clearInterval(interval);
 	}, [activeContactId, currentUser.studentId]);
 
+	// 4. Send Message
 	const handleSendMessage = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!newMessage.trim() || !activeContactId) return;
@@ -254,7 +262,9 @@ const MessagesClient = ({
 		}
 	};
 
+	// 5. Handle Delete Request (Validation)
 	const handleRequestDelete = () => {
+		// Logic: Only allow delete if there is NO active transaction OR if the transaction is CANCELLED or COMPLETED.
 		if (
 			activeTransaction &&
 			activeTransaction.status.toLowerCase() !== "cancelled" &&
@@ -268,6 +278,7 @@ const MessagesClient = ({
 		setShowDeleteModal(true);
 	};
 
+	// 6. Delete Conversation Handler
 	const handleDeleteConversation = async () => {
 		if (!activeContactId) return;
 		setIsDeleting(true);
@@ -308,8 +319,10 @@ const MessagesClient = ({
 		}
 	};
 
-	// --- ACTION HANDLERS ---
-	const executeAction = async (actionType: "ACCEPT" | "CONFIRM" | "CANCEL") => {
+	// --- ACTION HANDLERS (Accept, Confirm, Cancel, Return) ---
+	const handleAction = async (
+		actionType: "ACCEPT" | "CONFIRM" | "CANCEL" | "RETURN" | "CONFIRM_RETURN"
+	) => {
 		if (!activeTransaction) return;
 		setIsActionLoading(true);
 
@@ -335,16 +348,35 @@ const MessagesClient = ({
 			);
 			sysMsg = `Buyer confirmed receipt of "${activeTransaction.itemName}". Transaction Complete.`;
 		}
+		// --- RENTAL ACTIONS ---
+		else if (actionType === "RETURN") {
+			res = await returnItemAction(
+				activeTransaction.transactionId,
+				currentUser.studentId
+			);
+			sysMsg = `Buyer has initiated the return of "${activeTransaction.itemName}". Please meet to collect it.`;
+		} else if (actionType === "CONFIRM_RETURN") {
+			res = await completeReturnAction(
+				activeTransaction.transactionId,
+				currentUser.studentId
+			);
+			sysMsg = `Seller confirmed return of "${activeTransaction.itemName}". Transaction Closed.`;
+		}
 
 		if (res?.success) {
-			const newStatus =
-				actionType === "CANCEL"
-					? "Cancelled"
-					: actionType === "ACCEPT"
-					? activeTransaction.amount > 0
-						? "To Meet"
-						: "To Pay"
-					: "Completed";
+			// Manually update status for immediate UI feedback based on action
+			let newStatus = activeTransaction.status;
+			if (actionType === "CANCEL") newStatus = "Cancelled";
+			else if (actionType === "ACCEPT")
+				newStatus = activeTransaction.amount > 0 ? "To Meet" : "To Pay";
+			else if (actionType === "CONFIRM")
+				newStatus =
+					activeTransaction.transactionType === "Rent"
+						? "Ongoing"
+						: "Completed";
+			else if (actionType === "RETURN") newStatus = "Returning";
+			else if (actionType === "CONFIRM_RETURN") newStatus = "Completed";
+
 			setActiveTransaction({ ...activeTransaction, status: newStatus });
 
 			await sendMessageAction({
@@ -383,8 +415,12 @@ const MessagesClient = ({
 				return "bg-yellow-50 border-yellow-200 text-yellow-800";
 			case "to pay":
 			case "to meet":
+			case "ongoing":
 				return "bg-blue-50 border-blue-200 text-blue-800";
+			case "returning":
+				return "bg-orange-50 border-orange-200 text-orange-800 animate-pulse";
 			case "cancelled":
+			case "failed":
 				return "bg-red-50 border-red-200 text-red-800";
 			default:
 				return "bg-gray-50 border-gray-200 text-gray-800";
@@ -401,7 +437,7 @@ const MessagesClient = ({
 	);
 
 	return (
-		<div className="flex flex-col lg:flex-row gap-6 h-[calc(90vh-140px)] relative">
+		<div className="flex flex-col lg:flex-row gap-6 h-[calc(85vh-140px)] relative">
 			{/* Toast Notification */}
 			{showToast && (
 				<div className="fixed top-24 right-10 z-80 bg-green-500 text-white px-6 py-4 rounded-xl shadow-lg flex items-center gap-3 animate-fade-in-down">
@@ -491,10 +527,10 @@ const MessagesClient = ({
 							<button
 								onClick={() => setShowCancelModal(false)}
 								className="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors">
-								Keep it
+								No, Keep it
 							</button>
 							<button
-								onClick={() => executeAction("CANCEL")}
+								onClick={() => handleAction("CANCEL")}
 								disabled={isActionLoading}
 								className="px-5 py-2.5 rounded-lg bg-red-900 text-white font-semibold hover:bg-red-800 transition-colors disabled:bg-red-400">
 								{isActionLoading ? "Processing..." : "Yes, Cancel"}
@@ -531,7 +567,7 @@ const MessagesClient = ({
 								Cancel
 							</button>
 							<button
-								onClick={() => executeAction("ACCEPT")}
+								onClick={() => handleAction("ACCEPT")}
 								disabled={isActionLoading}
 								className="px-5 py-2.5 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors disabled:bg-green-400">
 								{isActionLoading ? "Processing..." : "Yes, Accept"}
@@ -571,7 +607,7 @@ const MessagesClient = ({
 								Not Yet
 							</button>
 							<button
-								onClick={() => executeAction("CONFIRM")}
+								onClick={() => handleAction("CONFIRM")}
 								disabled={isActionLoading}
 								className="px-5 py-2.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors disabled:bg-blue-400">
 								{isActionLoading ? "Processing..." : "Yes, Received"}
@@ -761,12 +797,14 @@ const MessagesClient = ({
 												<div className="flex gap-2">
 													<button
 														onClick={() => setShowAcceptModal(true)}
-														className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg transition-colors shadow-sm">
+														disabled={isActionLoading}
+														className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50">
 														Accept
 													</button>
 													<button
 														onClick={() => setShowCancelModal(true)}
-														className="flex-1 bg-white border border-red-200 text-red-700 hover:bg-red-50 text-xs font-bold py-2 rounded-lg transition-colors">
+														disabled={isActionLoading}
+														className="flex-1 bg-white border border-red-200 text-red-700 hover:bg-red-50 text-xs font-bold py-2 rounded-lg transition-colors disabled:opacity-50">
 														Decline
 													</button>
 												</div>
@@ -774,7 +812,8 @@ const MessagesClient = ({
 											{isBuyer && (
 												<button
 													onClick={() => setShowCancelModal(true)}
-													className="w-full bg-white border border-red-200 text-red-700 hover:bg-red-50 text-xs font-bold py-2 rounded-lg transition-colors">
+													disabled={isActionLoading}
+													className="w-full bg-white border border-red-200 text-red-700 hover:bg-red-50 text-xs font-bold py-2 rounded-lg transition-colors disabled:opacity-50">
 													Cancel Request
 												</button>
 											)}
@@ -786,7 +825,8 @@ const MessagesClient = ({
 											{isBuyer ? (
 												<button
 													onClick={() => setShowReceiptModal(true)}
-													className="w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg transition-colors shadow-sm">
+													disabled={isActionLoading}
+													className="w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50">
 													I Received the Item
 												</button>
 											) : (
@@ -797,6 +837,44 @@ const MessagesClient = ({
 										</>
 									)}
 
+									{/* --- RENTAL RETURN ACTIONS --- */}
+									{status === "ongoing" &&
+										activeTransaction.transactionType.toLowerCase() ===
+											"rent" && (
+											<>
+												{isBuyer ? (
+													<button
+														onClick={() => handleAction("RETURN")}
+														disabled={isActionLoading}
+														className="w-full bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50">
+														Return Item
+													</button>
+												) : (
+													<div className="text-xs font-medium text-center italic opacity-75">
+														Item is currently rented out.
+													</div>
+												)}
+											</>
+										)}
+
+									{status === "returning" && (
+										<>
+											{!isBuyer ? (
+												<button
+													onClick={() => handleAction("CONFIRM_RETURN")}
+													disabled={isActionLoading}
+													className="w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50">
+													Confirm Return
+												</button>
+											) : (
+												<div className="text-xs font-medium text-center italic opacity-75">
+													Waiting for seller confirmation...
+												</div>
+											)}
+										</>
+									)}
+
+									{/* COMPLETED/CANCELLED */}
 									{(status === "completed" || status === "cancelled") && (
 										<div className="text-xs font-bold text-center opacity-60">
 											{status === "completed"

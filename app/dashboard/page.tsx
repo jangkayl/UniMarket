@@ -184,7 +184,7 @@ const DashboardPage = async () => {
 		if (res.ok) {
 			const data: FetchedItem[] = await res.json();
 			// Take the first 5 items
-			featuredListings = data.slice(0, 5).map((item) => {
+			featuredListings = data.slice(0, 6).map((item) => {
 				const isRental = item.transactionType === "Rent";
 				const rawPrice = isRental ? item.rentalFee : item.price;
 
@@ -312,7 +312,83 @@ const DashboardPage = async () => {
 					</Link>
 				</section>
 
-				{/* --- 3. NOTIFICATIONS & STATS GRID --- */}
+				{/* --- 3. FEATURED LISTINGS (DYNAMIC) --- */}
+				<section>
+					<div className="flex justify-between items-end mb-6">
+						<h2 className="text-2xl font-bold text-gray-900">
+							Featured Listings
+						</h2>
+						<Link
+							href="/marketplace"
+							className="text-red-900 font-semibold hover:underline flex items-center gap-1">
+							View All
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="12"
+								height="12"
+								fill="currentColor"
+								className="bi bi-arrow-up-right"
+								viewBox="0 0 16 16">
+								<path
+									fillRule="evenodd"
+									d="M14 2.5a.5.5 0 0 0-.5-.5h-6a.5.5 0 0 0 0 1h4.793L2.146 13.146a.5.5 0 0 0 .708.708L13 3.707V8.5a.5.5 0 0 0 1 0z"
+								/>
+							</svg>
+						</Link>
+					</div>
+
+					<div className="grid grid-cols-3 gap-6">
+						{featuredListings.length > 0 ? (
+							featuredListings.map((item) => (
+								<Link
+									key={item.id}
+									href={`/marketplace/item/${item.id}`}
+									className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow group block">
+									<div className="h-60 bg-gray-200 relative overflow-hidden">
+										<div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100 relative">
+											{item.image ? (
+												<Image
+													src={item.image}
+													alt={item.title}
+													fill
+													className="object-cover"
+												/>
+											) : (
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													width="40"
+													height="40"
+													fill="currentColor"
+													className="bi bi-image"
+													viewBox="0 0 16 16">
+													<path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0" />
+													<path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12" />
+												</svg>
+											)}
+										</div>
+									</div>
+									<div className="p-4">
+										<h4 className="font-bold text-gray-900 text-xl mb-1 truncate">
+											{item.title}
+										</h4>
+										<p className="text-red-900 font-bold text-lg">
+											{item.price}
+										</p>
+										<p className="text-md text-gray-500 mt-1">
+											{item.condition}
+										</p>
+									</div>
+								</Link>
+							))
+						) : (
+							<div className="col-span-full py-8 text-center text-gray-500">
+								<p>No featured listings available.</p>
+							</div>
+						)}
+					</div>
+				</section>
+
+				{/* --- 4. NOTIFICATIONS & STATS GRID --- */}
 				<section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 					<div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
 						<div className="flex justify-between items-center mb-6">
@@ -357,82 +433,6 @@ const DashboardPage = async () => {
 								</div>
 							))}
 						</div>
-					</div>
-				</section>
-
-				{/* --- 4. FEATURED LISTINGS (DYNAMIC) --- */}
-				<section>
-					<div className="flex justify-between items-end mb-6">
-						<h2 className="text-2xl font-bold text-gray-900">
-							Featured Listings
-						</h2>
-						<Link
-							href="/marketplace"
-							className="text-red-900 font-semibold hover:underline flex items-center gap-1">
-							View All
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								width="12"
-								height="12"
-								fill="currentColor"
-								className="bi bi-arrow-up-right"
-								viewBox="0 0 16 16">
-								<path
-									fillRule="evenodd"
-									d="M14 2.5a.5.5 0 0 0-.5-.5h-6a.5.5 0 0 0 0 1h4.793L2.146 13.146a.5.5 0 0 0 .708.708L13 3.707V8.5a.5.5 0 0 0 1 0z"
-								/>
-							</svg>
-						</Link>
-					</div>
-
-					<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-						{featuredListings.length > 0 ? (
-							featuredListings.map((item) => (
-								<Link
-									key={item.id}
-									href={`/marketplace/item/${item.id}`}
-									className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow group block">
-									<div className="h-40 bg-gray-200 relative overflow-hidden">
-										<div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100 relative">
-											{item.image ? (
-												<Image
-													src={item.image}
-													alt={item.title}
-													fill
-													className="object-cover"
-												/>
-											) : (
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													width="40"
-													height="40"
-													fill="currentColor"
-													className="bi bi-image"
-													viewBox="0 0 16 16">
-													<path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0" />
-													<path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12" />
-												</svg>
-											)}
-										</div>
-									</div>
-									<div className="p-4">
-										<h4 className="font-bold text-gray-900 text-sm mb-1 truncate">
-											{item.title}
-										</h4>
-										<p className="text-red-900 font-bold text-lg">
-											{item.price}
-										</p>
-										<p className="text-xs text-gray-500 mt-1">
-											{item.condition}
-										</p>
-									</div>
-								</Link>
-							))
-						) : (
-							<div className="col-span-full py-8 text-center text-gray-500">
-								<p>No featured listings available.</p>
-							</div>
-						)}
 					</div>
 				</section>
 			</main>
