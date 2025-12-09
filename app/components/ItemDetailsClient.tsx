@@ -46,15 +46,11 @@ const ItemDetailsClient = ({
 }: ItemDetailsClientProps) => {
 	const router = useRouter();
 	const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
-
-	// Store the redirect URL to be used after the modal success screen
 	const [successRedirectUrl, setSuccessRedirectUrl] = useState("");
 
-	// This function is now purely backend logic called by the modal
 	const handlePurchaseConfirm = async (
 		method: "WALLET" | "MEETUP"
 	): Promise<boolean> => {
-		// Logic from modal ensures validation, so we proceed directly
 		const price =
 			item.transactionType === "Rent" ? item.rentalFee || 0 : item.price || 0;
 
@@ -77,11 +73,9 @@ const ItemDetailsClient = ({
 			itemId: item.itemId,
 		};
 
-		// 1. Create Transaction in Backend
 		const res = await createTransactionAction(transactionData);
 
 		if (res.success) {
-			// 2. AUTO-SEND MESSAGE TO SELLER
 			let autoMessage = "";
 			if (item.transactionType === "Rent") {
 				autoMessage = `I have requested to rent your "${item.itemName}" for ${item.rentalDurationDays} days via ${method}. Please confirm.`;
@@ -95,24 +89,12 @@ const ItemDetailsClient = ({
 				messageContent: autoMessage,
 				messageType: "CHAT",
 				isRead: false,
-				itemId: item.itemId, // Link the message to the item
+				itemId: item.itemId,
 			};
 
-			// Fire and forget (or await if strict)
 			await sendMessageAction(messagePayload);
 
-			// 3. Prepare Redirect URL
-			// IMPORTANT: Construct a clean URL without 'refItem' so the input box on the next page is empty.
-			// We include sellerName/Pic to ensure the contact exists in the sidebar if they haven't chatted before.
-			const cleanRedirectUrl = `/messages?chatWith=${
-				item.sellerId
-			}&sellerName=${encodeURIComponent(
-				seller.name
-			)}&sellerPic=${encodeURIComponent(
-				seller.profilePictureUrl || ""
-			)}&txCreated=true`;
-
-			setSuccessRedirectUrl(cleanRedirectUrl);
+			setSuccessRedirectUrl(`${chatUrl}&txCreated=true`);
 			return true;
 		} else {
 			alert("Failed to process transaction. Please try again.");
@@ -250,33 +232,44 @@ const ItemDetailsClient = ({
 
 					<div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm mb-6 mt-auto">
 						<div className="flex items-start gap-4">
-							<div className="w-12 h-12 bg-gray-100 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-gray-400 border border-gray-200 relative">
-								{seller.profilePictureUrl ? (
-									<Image
-										src={seller.profilePictureUrl}
-										alt={seller.name}
-										fill
-										className="object-cover"
-									/>
-								) : (
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										fill="currentColor"
-										className="w-6 h-6"
-										viewBox="0 0 16 16">
-										<path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0" />
-										<path
-											fillRule="evenodd"
-											d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"
+							{/* --- CLICKABLE AVATAR --- */}
+							<Link
+								href={`/profile/${item.sellerId}`}
+								className="shrink-0">
+								<div className="w-12 h-12 bg-gray-100 rounded-full overflow-hidden flex items-center justify-center text-gray-400 border border-gray-200 relative hover:opacity-80 transition-opacity">
+									{seller.profilePictureUrl ? (
+										<Image
+											src={seller.profilePictureUrl}
+											alt={seller.name}
+											fill
+											className="object-cover"
 										/>
-									</svg>
-								)}
-							</div>
+									) : (
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											fill="currentColor"
+											className="w-6 h-6"
+											viewBox="0 0 16 16">
+											<path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0" />
+											<path
+												fillRule="evenodd"
+												d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"
+											/>
+										</svg>
+									)}
+								</div>
+							</Link>
+
 							<div className="grow">
 								<div className="flex justify-between items-center mb-1">
-									<h4 className="font-bold text-gray-900 text-lg">
-										{seller.name}
-									</h4>
+									{/* --- CLICKABLE NAME --- */}
+									<Link
+										href={`/profile/${item.sellerId}`}
+										className="hover:underline hover:text-red-900 transition-colors">
+										<h4 className="font-bold text-gray-900 text-lg">
+											{seller.name}
+										</h4>
+									</Link>
 								</div>
 								{!isOwner && (
 									<div className="flex gap-3 mt-2">

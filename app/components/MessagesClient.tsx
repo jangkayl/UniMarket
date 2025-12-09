@@ -133,12 +133,13 @@ const MessagesClient = ({
 	const [newMessage, setNewMessage] = useState(() => {
 		const initialMessage = searchParams.get("initialMessage");
 		const refItem = searchParams.get("refItem");
+		const txCreated = searchParams.get("txCreated");
 
 		if (initialMessage) {
 			return decodeURIComponent(initialMessage);
 		}
 
-		if (refItem) {
+		if (refItem && !txCreated) {
 			try {
 				return `Hi, I'm interested in your "${decodeURIComponent(
 					refItem

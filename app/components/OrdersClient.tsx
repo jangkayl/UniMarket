@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import ReviewModal from "../components/ReviewModal";
 import { TransactionHistoryItem } from "@/app/actions/transaction";
 
 interface OrdersClientProps {
@@ -12,13 +13,26 @@ interface OrdersClientProps {
 	transactions: TransactionHistoryItem[];
 }
 
+// Extend type to include hasReviewed flag
+interface ExtendedTransactionItem extends TransactionHistoryItem {
+	hasReviewed?: boolean;
+}
+
 const OrdersClient = ({ currentUser, transactions }: OrdersClientProps) => {
 	const [activeTab, setActiveTab] = useState<"BUYING" | "SELLING">("BUYING");
+
+	// Review Modal State (Added to make review functional)
+	const [isReviewOpen, setIsReviewOpen] = useState(false);
+	const [reviewTarget, setReviewTarget] = useState<{
+		txId: number;
+		revieweeId: number;
+		itemName: string;
+	} | null>(null);
 
 	// 1. Filter out Rentals (Show only Sales/Purchases/Swaps)
 	const orderTransactions = transactions.filter(
 		(tx) => tx.transactionType.toLowerCase() !== "rent"
-	);
+	) as ExtendedTransactionItem[];
 
 	// Helper: Sort by Status (Pending First) then Date (Newest First)
 	const sortOrders = (a: TransactionHistoryItem, b: TransactionHistoryItem) => {
@@ -77,15 +91,29 @@ const OrdersClient = ({ currentUser, transactions }: OrdersClientProps) => {
 			: null;
 	};
 
+	const handleOpenReview = (tx: ExtendedTransactionItem) => {
+		setReviewTarget({
+			txId: tx.transactionId,
+			revieweeId: activeTab === "BUYING" ? tx.sellerId : tx.buyerId,
+			itemName: tx.itemName,
+		});
+		setIsReviewOpen(true);
+	};
+
 	// --- ORDER CARD COMPONENT ---
 	const OrderCard = ({
 		tx,
 		role,
 	}: {
-		tx: TransactionHistoryItem;
+		tx: ExtendedTransactionItem;
 		role: "BUYER" | "SELLER";
 	}) => {
 		const isPending = tx.status.toLowerCase() === "pending";
+		const isCompleted =
+			tx.status.toLowerCase() === "completed" ||
+			tx.status.toLowerCase() === "cancelled";
+		const hasReviewed = tx.hasReviewed; // Check if user already reviewed
+		const canReview = isCompleted && !hasReviewed;
 
 		// Dynamic Badge Color for Transaction Type
 		const getTypeBadgeStyle = (type: string) => {
@@ -213,7 +241,41 @@ const OrdersClient = ({ currentUser, transactions }: OrdersClientProps) => {
 							</span>
 						</div>
 
-						<div className="flex gap-3">
+						<div className="flex gap-2 items-center">
+							{/* --- REVIEW UI LOGIC --- */}
+							{canReview && (
+								<button
+									onClick={() => handleOpenReview(tx)}
+									className="flex items-center gap-1 px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-xl font-bold text-sm transition-colors shadow-sm">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										width="14"
+										height="14"
+										fill="currentColor"
+										className="bi bi-star-fill"
+										viewBox="0 0 16 16">
+										<path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.282.95l-3.522 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z" />
+									</svg>
+									Rate
+								</button>
+							)}
+
+							{/* --- REVIEWED INDICATOR --- */}
+							{hasReviewed && (
+								<div className="flex items-center gap-1 px-3 py-2 bg-green-50 text-green-700 rounded-xl font-bold text-xs border border-green-100 cursor-default select-none">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										width="14"
+										height="14"
+										fill="currentColor"
+										className="bi bi-check-circle-fill"
+										viewBox="0 0 16 16">
+										<path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z" />
+									</svg>
+									Reviewed
+								</div>
+							)}
+
 							<Link
 								href={`/messages?chatWith=${
 									role === "BUYER" ? tx.sellerId : tx.buyerId
@@ -231,8 +293,6 @@ const OrdersClient = ({ currentUser, transactions }: OrdersClientProps) => {
 									Chat
 								</button>
 							</Link>
-
-							{/* VIEW ITEM BUTTON with Eye Icon */}
 							<Link href={`/marketplace/item/${tx.itemId}`}>
 								<button className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-sm transition-colors">
 									<svg
@@ -289,7 +349,7 @@ const OrdersClient = ({ currentUser, transactions }: OrdersClientProps) => {
 								<path d="M8 1a2.5 2.5 0 0 1 2.5 2.5V4h-5v-.5A2.5 2.5 0 0 1 8 1m3.5 3v-.5a3.5 3.5 0 1 0-7 0V4H1v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4z" />
 							</svg>
 							Buying{" "}
-							<span className="ml-1 bg-gray-200 text-gray-600 px-1.5 rounded-full text-[10px] min-w-[ text-center">
+							<span className="ml-1 bg-gray-200 text-gray-600 px-1.5 rounded-full text-[10px] min-w-5 text-center">
 								{buyingOrders.length}
 							</span>
 						</button>
@@ -335,9 +395,10 @@ const OrdersClient = ({ currentUser, transactions }: OrdersClientProps) => {
 									width="32"
 									height="32"
 									fill="currentColor"
-									className="bi bi-basket"
+									className="bi bi-cart-x"
 									viewBox="0 0 16 16">
-									<path d="M5.757 1.071a.5.5 0 0 1 .172.686L3.383 6h9.234L10.07 1.757a.5.5 0 1 1 .858-.514L13.783 6H15a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1v4.5a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 1 13.5V9a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h1.217L5.07 1.243a.5.5 0 0 1 .686-.172zM2 9v4.5A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5V9zM1 7v1h14V7zm3 3a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0v-3A.5.5 0 0 1 4 10m2 0a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0v-3A.5.5 0 0 1 6 10m2 0a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0v-3A.5.5 0 0 1 8 10m2 0a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0v-3A.5.5 0 0 1 10 10" />
+									<path d="M7.354 5.646a.5.5 0 1 0-.708.708L7.293 7 6.646 7.646a.5.5 0 1 0 .708.708L8 7.707l.646.647a.5.5 0 0 0 .708-.708L8.707 7l.647-.646a.5.5 0 0 0-.708-.708L8 6.293 7.354 5.646z" />
+									<path d="M.5 1a.5.5 0 0 0 0 1h1.11l.401 1.607 1.498 7.985A.5.5 0 0 0 4 12h1a2 2 0 1 0 0 4 2 2 0 0 0 0-4h7a2 2 0 1 0 0 4 2 2 0 0 0 0-4h1a.5.5 0 0 0 .491-.408l1.5-8A.5.5 0 0 0 14.5 3H2.89l-.405-1.621A.5.5 0 0 0 2 1H.5zm3.915 10L3.102 4h10.796l-1.313 7h-8.17zM6 14a1 1 0 1 1-2 0 1 1 0 0 1 2 0m7 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0" />
 								</svg>
 							</div>
 							<p className="text-gray-500 font-medium text-lg">
@@ -356,6 +417,18 @@ const OrdersClient = ({ currentUser, transactions }: OrdersClientProps) => {
 			</main>
 
 			<Footer />
+
+			{reviewTarget && (
+				<ReviewModal
+					isOpen={isReviewOpen}
+					onClose={() => setIsReviewOpen(false)}
+					transactionId={reviewTarget.txId}
+					reviewerId={currentUser.studentId}
+					revieweeId={reviewTarget.revieweeId}
+					itemName={reviewTarget.itemName}
+					onSuccess={() => window.location.reload()}
+				/>
+			)}
 		</div>
 	);
 };
