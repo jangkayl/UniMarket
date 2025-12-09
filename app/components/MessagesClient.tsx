@@ -17,6 +17,7 @@ import {
 	returnItemAction,
 	completeReturnAction,
 } from "@/app/actions/transaction";
+import Link from "next/link";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -700,36 +701,42 @@ const MessagesClient = ({
 						{/* Chat Header */}
 						<div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white shadow-sm z-10">
 							<div className="flex items-center gap-4">
-								<div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden relative border border-gray-100">
-									{activeContact?.profilePicture ? (
-										<Image
-											src={getAvatarUrl(activeContact.profilePicture)!}
-											alt="Avatar"
-											fill
-											className="object-cover"
-										/>
-									) : (
-										<div className="w-full h-full flex items-center justify-center text-gray-400">
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												fill="currentColor"
-												className="w-5 h-5"
-												viewBox="0 0 16 16">
-												<path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0" />
-												<path
-													fillRule="evenodd"
-													d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"
-												/>
-											</svg>
-										</div>
-									)}
-								</div>
+								<Link
+									href={`/profile/${activeContact?.studentId}`}
+									className="shrink-0">
+									<div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden relative border border-gray-100">
+										{activeContact?.profilePicture ? (
+											<Image
+												src={getAvatarUrl(activeContact.profilePicture)!}
+												alt="Avatar"
+												fill
+												className="object-cover"
+											/>
+										) : (
+											<div className="w-full h-full flex items-center justify-center text-gray-400">
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													fill="currentColor"
+													className="w-5 h-5"
+													viewBox="0 0 16 16">
+													<path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0" />
+													<path
+														fillRule="evenodd"
+														d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"
+													/>
+												</svg>
+											</div>
+										)}
+									</div>
+								</Link>
 								<div>
-									<h2 className="font-bold text-gray-900 text-lg leading-tight">
-										{activeContact
-											? `${activeContact.firstName} ${activeContact.lastName}`
-											: `User #${activeContactId}`}
-									</h2>
+									<Link href={`/profile/${activeContact?.studentId}`}>
+										<h2 className="font-bold text-gray-900 text-lg leading-tight">
+											{activeContact
+												? `${activeContact.firstName} ${activeContact.lastName}`
+												: `User #${activeContactId}`}
+										</h2>
+									</Link>
 									<span className="text-xs text-green-600 font-medium flex items-center gap-1">
 										<span className="w-2 h-2 bg-green-500 rounded-full"></span>{" "}
 										Online

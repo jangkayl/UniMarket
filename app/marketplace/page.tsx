@@ -15,8 +15,8 @@ interface FetchedItem {
 	category: string;
 	condition: string;
 	transactionType: string;
-	itemPhoto: string | null; // String filename
-	itemPhotoId: number | null; // Fallback ID
+	itemPhoto: string | null;
+	itemPhotoId: number | null;
 	sellerId: number;
 	sellerFirstName?: string;
 	sellerLastName?: string;

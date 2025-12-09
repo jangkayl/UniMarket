@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { ReviewItem } from "@/app/actions/review";
 
 interface PublicUser {
 	studentId: number;
@@ -30,10 +31,18 @@ interface Item {
 interface PublicProfileClientProps {
 	user: PublicUser;
 	items: Item[];
+	reviews: ReviewItem[];
 }
 
-const PublicProfileClient = ({ user, items }: PublicProfileClientProps) => {
-	const [activeTab, setActiveTab] = useState<"SELL" | "RENT">("SELL");
+const PublicProfileClient = ({
+	user,
+	items,
+	reviews = [],
+}: PublicProfileClientProps) => {
+	const [activeSection, setActiveSection] = useState<"LISTINGS" | "REVIEWS">(
+		"LISTINGS"
+	);
+	const [listingType, setListingType] = useState<"SELL" | "RENT">("SELL");
 
 	const getAvatarUrl = (photo: string | null) => {
 		return photo
@@ -51,7 +60,7 @@ const PublicProfileClient = ({ user, items }: PublicProfileClientProps) => {
 			: null;
 	};
 
-	// Segregate Items
+	// Filter Items
 	const sellItems = items.filter(
 		(item) =>
 			item.transactionType.toLowerCase() === "sell" ||
@@ -61,7 +70,49 @@ const PublicProfileClient = ({ user, items }: PublicProfileClientProps) => {
 		(item) => item.transactionType.toLowerCase() === "rent"
 	);
 
-	const displayItems = activeTab === "SELL" ? sellItems : rentItems;
+	const displayItems = listingType === "SELL" ? sellItems : rentItems;
+
+	// --- CALCULATE RATINGS ---
+	const reviewCount = reviews ? reviews.length : 0;
+
+	const averageRatingVal =
+		reviewCount > 0
+			? reviews.reduce((acc, r) => acc + r.rating, 0) / reviewCount
+			: 0;
+
+	const averageRatingStr =
+		averageRatingVal > 0 ? averageRatingVal.toFixed(1) : "New";
+
+	// Helper Components
+	const StarRating = ({ rating }: { rating: number }) => (
+		<div className="flex text-yellow-400 gap-0.5">
+			{[...Array(5)].map((_, i) => (
+				<svg
+					key={i}
+					xmlns="http://www.w3.org/2000/svg"
+					width="14"
+					height="14"
+					fill={i < Math.floor(rating) ? "currentColor" : "none"}
+					stroke="currentColor"
+					strokeWidth="1.5"
+					className="bi bi-star-fill"
+					viewBox="0 0 16 16">
+					<path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.282.95l-3.522 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z" />
+				</svg>
+			))}
+		</div>
+	);
+
+	const getTagStyle = (type: string) => {
+		switch (type?.toLowerCase()) {
+			case "sell":
+				return "bg-green-50 text-green-900 border-green-100";
+			case "rent":
+				return "bg-orange-50 text-orange-900 border-orange-100";
+			default:
+				return "bg-gray-100 text-gray-700";
+		}
+	};
 
 	return (
 		<div className="bg-gray-50 min-h-screen flex flex-col font-sans text-gray-900">
@@ -131,13 +182,17 @@ const PublicProfileClient = ({ user, items }: PublicProfileClientProps) => {
 										viewBox="0 0 16 16">
 										<path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.282.95l-3.522 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z" />
 									</svg>
-									Trust Score: {user.trustScore || 850}
+									Rating: {averageRatingStr}
 								</div>
-								<div className="text-gray-400 text-sm">
+								<div className="text-gray-400 text-sm border-r pr-4 mr-2">
 									<span className="font-bold text-gray-900">
 										{items.length}
 									</span>{" "}
-									Items Listed
+									Items
+								</div>
+								<div className="text-gray-400 text-sm">
+									<span className="font-bold text-gray-900">{reviewCount}</span>{" "}
+									Reviews
 								</div>
 							</div>
 						</div>
@@ -163,153 +218,240 @@ const PublicProfileClient = ({ user, items }: PublicProfileClientProps) => {
 						</div>
 					</div>
 
-					{/* --- ITEMS SECTION --- */}
-					<div>
-						<div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-							<h2 className="text-2xl font-bold text-gray-900">
-								{user.firstName}&apos;s Listings
-							</h2>
+					{/* --- MAIN TABS --- */}
+					<div className="flex border-b border-gray-200 mb-8">
+						<button
+							onClick={() => setActiveSection("LISTINGS")}
+							className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
+								activeSection === "LISTINGS"
+									? "border-red-900 text-red-900"
+									: "border-transparent text-gray-500 hover:text-gray-700"
+							}`}>
+							Listings ({items.length})
+						</button>
+						<button
+							onClick={() => setActiveSection("REVIEWS")}
+							className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors ${
+								activeSection === "REVIEWS"
+									? "border-red-900 text-red-900"
+									: "border-transparent text-gray-500 hover:text-gray-700"
+							}`}>
+							Reviews ({reviewCount})
+						</button>
+					</div>
 
-							{/* Tabs */}
-							<div className="bg-white p-1.5 rounded-xl border border-gray-200 inline-flex shadow-sm">
+					{/* --- LISTINGS CONTENT --- */}
+					{activeSection === "LISTINGS" && (
+						<div className="animate-fade-in">
+							<div className="flex bg-gray-100 p-1 rounded-lg mb-6">
 								<button
-									onClick={() => setActiveTab("SELL")}
-									className={`px-6 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${
-										activeTab === "SELL"
-											? "bg-red-50 text-red-900 shadow-sm ring-1 ring-red-100"
-											: "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+									onClick={() => setListingType("SELL")}
+									className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${
+										listingType === "SELL"
+											? "bg-white shadow-sm text-gray-900"
+											: "text-gray-500 hover:text-gray-700"
 									}`}>
-									For Sale{" "}
-									<span className="ml-1 bg-gray-200 text-gray-600 px-1.5 rounded-full text-[10px] min-w-5 text-center">
-										{sellItems.length}
-									</span>
+									For Sale ({sellItems.length})
 								</button>
 								<button
-									onClick={() => setActiveTab("RENT")}
-									className={`px-6 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${
-										activeTab === "RENT"
-											? "bg-red-50 text-red-900 shadow-sm ring-1 ring-red-100"
-											: "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+									onClick={() => setListingType("RENT")}
+									className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${
+										listingType === "RENT"
+											? "bg-white shadow-sm text-gray-900"
+											: "text-gray-500 hover:text-gray-700"
 									}`}>
-									For Rent{" "}
-									<span className="ml-1 bg-gray-200 text-gray-600 px-1.5 rounded-full text-[10px] min-w-5 text-center">
-										{rentItems.length}
-									</span>
+									For Rent ({rentItems.length})
 								</button>
 							</div>
-						</div>
 
-						{displayItems.length > 0 ? (
-							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-								{displayItems.map((item) => (
-									<Link
-										href={`/marketplace/item/${item.itemId}`}
-										key={item.itemId}
-										className="group block bg-white border border-gray-200 rounded-2xl overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-										<div className="relative h-56 bg-gray-100 flex items-center justify-center overflow-hidden">
-											{item.itemPhoto ? (
-												<Image
-													src={getItemImageUrl(item.itemPhoto)!}
-													alt={item.itemName}
-													fill
-													className="object-cover group-hover:scale-110 transition-transform duration-500"
-												/>
-											) : (
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													width="48"
-													height="48"
-													fill="currentColor"
-													className="bi bi-image text-gray-300"
-													viewBox="0 0 16 16">
-													<path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0" />
-													<path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12" />
-												</svg>
-											)}
-
-											{/* Status Badge */}
-											<div className="absolute top-3 right-3">
-												<span
-													className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider shadow-sm ${
-														item.availabilityStatus === "AVAILABLE"
-															? "bg-green-100 text-green-800"
-															: "bg-gray-800 text-white"
-													}`}>
-													{item.availabilityStatus}
-												</span>
-											</div>
-											{/* Type Badge */}
-											<div className="absolute bottom-3 left-3">
-												<span
-													className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider shadow-sm border ${
-														item.transactionType === "Rent"
-															? "bg-orange-100 text-orange-800 border-orange-200"
-															: "bg-blue-100 text-blue-800 border-blue-200"
-													}`}>
-													{item.transactionType}
-												</span>
-											</div>
-										</div>
-
-										<div className="p-4">
-											<h3 className="font-bold text-gray-900 text-lg mb-1 truncate group-hover:text-[#8B0000] transition-colors">
-												{item.itemName}
-											</h3>
-											<p className="text-gray-500 text-xs mb-3 font-medium uppercase tracking-wide">
-												{item.category}
-											</p>
-											<div className="flex justify-between items-end">
-												<div className="text-xl font-extrabold text-[#8B0000]">
-													₱
-													{item.rentalFee
-														? item.rentalFee.toLocaleString()
-														: item.price.toLocaleString()}
-													{item.transactionType === "Rent" &&
-														item.rentalDurationDays && (
-															<span className="text-xs text-gray-500 font-normal ml-1">
-																/ {item.rentalDurationDays} days
-															</span>
-														)}
-												</div>
-												<div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-[#8B0000] group-hover:text-white transition-colors">
+							{displayItems.length > 0 ? (
+								<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+									{displayItems.map((item) => (
+										<Link
+											href={`/marketplace/item/${item.itemId}`}
+											key={item.itemId}
+											className="group block bg-white border border-gray-200 rounded-2xl overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+											<div className="relative h-56 bg-gray-100 flex items-center justify-center overflow-hidden">
+												{item.itemPhoto ? (
+													<Image
+														src={getItemImageUrl(item.itemPhoto)!}
+														alt={item.itemName}
+														fill
+														className="object-cover group-hover:scale-110 transition-transform duration-500"
+													/>
+												) : (
 													<svg
 														xmlns="http://www.w3.org/2000/svg"
-														width="16"
-														height="16"
+														width="48"
+														height="48"
 														fill="currentColor"
-														className="bi bi-arrow-right"
+														className="bi bi-image text-gray-300"
 														viewBox="0 0 16 16">
-														<path
-															fillRule="evenodd"
-															d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8"
-														/>
+														<path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0" />
+														<path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12" />
 													</svg>
+												)}
+
+												<div className="absolute top-3 right-3">
+													<span
+														className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider shadow-sm ${
+															item.availabilityStatus === "AVAILABLE"
+																? "bg-green-100 text-green-800"
+																: "bg-gray-800 text-white"
+														}`}>
+														{item.availabilityStatus}
+													</span>
+												</div>
+												<div className="absolute bottom-3 left-3">
+													<span
+														className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider shadow-sm border ${
+															item.transactionType === "Rent"
+																? "bg-orange-100 text-orange-800 border-orange-200"
+																: "bg-blue-100 text-blue-800 border-blue-200"
+														}`}>
+														{item.transactionType}
+													</span>
 												</div>
 											</div>
-										</div>
-									</Link>
-								))}
-							</div>
-						) : (
-							<div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-gray-200">
-								<div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mx-auto mb-4">
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										width="32"
-										height="32"
-										fill="currentColor"
-										className="bi bi-inbox"
-										viewBox="0 0 16 16">
-										<path d="M4.98 4a.5.5 0 0 0-.39.188L1.54 8H6a.5.5 0 0 1 .5.5 1.5 1.5 0 1 0 3 0A.5.5 0 0 1 10 8h4.46l-3.05-3.812A.5.5 0 0 0 11.02 4H4.98zm9.954 5H10.45a2.5 2.5 0 0 1-4.9 0H1.066l.32 2.562a.5.5 0 0 0 .497.438h12.234a.5.5 0 0 0 .496-.438L14.933 9zM3.809 3.563A1.5 1.5 0 0 1 4.981 3h6.038a1.5 1.5 0 0 1 1.172.563l3.7 4.625a.5.5 0 0 1 .105.374l-.39 3.124A1.5 1.5 0 0 1 14.117 13H1.883a1.5 1.5 0 0 1-1.489-1.314l-.39-3.124a.5.5 0 0 1 .106-.374l3.7-4.625z" />
-									</svg>
+
+											<div className="p-4">
+												<h3 className="font-bold text-gray-900 text-lg mb-1 truncate group-hover:text-[#8B0000] transition-colors">
+													{item.itemName}
+												</h3>
+												<p className="text-gray-500 text-xs mb-3 font-medium uppercase tracking-wide">
+													{item.category}
+												</p>
+												<div className="flex justify-between items-end">
+													<div className="text-xl font-extrabold text-[#8B0000]">
+														₱
+														{item.rentalFee
+															? item.rentalFee.toLocaleString()
+															: item.price.toLocaleString()}
+														{item.transactionType === "Rent" &&
+															item.rentalDurationDays && (
+																<span className="text-xs text-gray-500 font-normal ml-1">
+																	/ {item.rentalDurationDays} days
+																</span>
+															)}
+													</div>
+													<div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-[#8B0000] group-hover:text-white transition-colors">
+														<svg
+															xmlns="http://www.w3.org/2000/svg"
+															width="16"
+															height="16"
+															fill="currentColor"
+															className="bi bi-arrow-right"
+															viewBox="0 0 16 16">
+															<path
+																fillRule="evenodd"
+																d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8"
+															/>
+														</svg>
+													</div>
+												</div>
+											</div>
+										</Link>
+									))}
 								</div>
-								<p className="text-gray-500 font-medium">
-									No items listed for {activeTab === "SELL" ? "sale" : "rent"}{" "}
-									yet.
-								</p>
-							</div>
-						)}
-					</div>
+							) : (
+								<div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-gray-200">
+									<div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mx-auto mb-4">
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											width="32"
+											height="32"
+											fill="currentColor"
+											className="bi bi-inbox"
+											viewBox="0 0 16 16">
+											<path d="M4.98 4a.5.5 0 0 0-.39.188L1.54 8H6a.5.5 0 0 1 .5.5 1.5 1.5 0 1 0 3 0A.5.5 0 0 1 10 8h4.46l-3.05-3.812A.5.5 0 0 0 11.02 4H4.98zm9.954 5H10.45a2.5 2.5 0 0 1-4.9 0H1.066l.32 2.562a.5.5 0 0 0 .497.438h12.234a.5.5 0 0 0 .496-.438L14.933 9zM3.809 3.563A1.5 1.5 0 0 1 4.981 3h6.038a1.5 1.5 0 0 1 1.172.563l3.7 4.625a.5.5 0 0 1 .105.374l-.39 3.124A1.5 1.5 0 0 1 14.117 13H1.883a1.5 1.5 0 0 1-1.489-1.314l-.39-3.124a.5.5 0 0 1 .106-.374l3.7-4.625z" />
+										</svg>
+									</div>
+									<p className="text-gray-500 font-medium">
+										No {listingType.toLowerCase()} listings found.
+									</p>
+								</div>
+							)}
+						</div>
+					)}
+
+					{/* --- REVIEWS SECTION --- */}
+					{activeSection === "REVIEWS" && (
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+							{reviews && reviews.length > 0 ? (
+								reviews.map((review) => (
+									<div
+										key={review.review_id}
+										className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
+										<div className="flex items-center gap-3 mb-4">
+											<div className="w-10 h-10 bg-gray-100 rounded-full overflow-hidden relative shrink-0 border border-gray-100">
+												{review.reviewerProfilePicture ? (
+													<Image
+														src={getAvatarUrl(review.reviewerProfilePicture)!}
+														alt={review.reviewerName}
+														fill
+														className="object-cover"
+													/>
+												) : (
+													<div className="w-full h-full flex items-center justify-center text-gray-400">
+														<svg
+															xmlns="http://www.w3.org/2000/svg"
+															width="20"
+															height="20"
+															fill="currentColor"
+															className="bi bi-person-fill"
+															viewBox="0 0 16 16">
+															<path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6" />
+														</svg>
+													</div>
+												)}
+											</div>
+											<div>
+												<h4 className="font-bold text-gray-900 text-sm">
+													{review.reviewerName || "User"}
+												</h4>
+												<p className="text-xs text-gray-400">
+													{new Date(review.created_at).toLocaleDateString()}
+												</p>
+											</div>
+										</div>
+										<div className="flex mb-3">
+											<StarRating rating={review.rating} />
+										</div>
+										<p className="text-gray-600 text-sm italic mb-4 grow">
+											&quot;{review.comment}&quot;
+										</p>
+										<div className="pt-3 border-t border-gray-100 flex items-center gap-2">
+											<span
+												className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${getTagStyle(
+													review.transactionType
+												)}`}>
+												{review.transactionType}
+											</span>
+											<span className="text-xs font-semibold text-gray-700 truncate">
+												{review.itemName || "Item"}
+											</span>
+										</div>
+									</div>
+								))
+							) : (
+								<div className="col-span-full text-center py-20 bg-white rounded-3xl border-2 border-dashed border-gray-200">
+									<div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mx-auto mb-4">
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											width="32"
+											height="32"
+											fill="currentColor"
+											className="bi bi-chat-square-text"
+											viewBox="0 0 16 16">
+											<path d="M14 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-2.5a2 2 0 0 0-1.6.8L8 14.333 6.1 11.8a2 2 0 0 0-1.6-.8H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zM2 0a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2.5a1 1 0 0 1 .8.4l1.9 2.533a1 1 0 0 0 1.6 0l1.9-2.533a1 1 0 0 1 .8-.4H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2z" />
+											<path d="M3 3.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5M3 6a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9A.5.5 0 0 1 3 6m0 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5" />
+										</svg>
+									</div>
+									<p className="text-gray-500 font-medium">No reviews yet.</p>
+								</div>
+							)}
+						</div>
+					)}
 				</div>
 			</main>
 		</div>
